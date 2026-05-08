@@ -1,0 +1,794 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		8141207B2FAB68E800BD0B70 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8141207A2FAB68E800BD0B70 /* WidgetKit.framework */; };
+		8141207D2FAB68E800BD0B70 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8141207C2FAB68E800BD0B70 /* SwiftUI.framework */; };
+		8141208C2FAB68EA00BD0B70 /* FirepowerActivityKitExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 814120782FAB68E800BD0B70 /* FirepowerActivityKitExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		814120582FAB689500BD0B70 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 814120422FAB689400BD0B70 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 814120492FAB689400BD0B70;
+			remoteInfo = Firepower;
+		};
+		814120622FAB689500BD0B70 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 814120422FAB689400BD0B70 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 814120492FAB689400BD0B70;
+			remoteInfo = Firepower;
+		};
+		8141208A2FAB68EA00BD0B70 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 814120422FAB689400BD0B70 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 814120772FAB68E800BD0B70;
+			remoteInfo = FirepowerActivityKitExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		814120912FAB68EA00BD0B70 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				8141208C2FAB68EA00BD0B70 /* FirepowerActivityKitExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		8141204A2FAB689400BD0B70 /* Firepower.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Firepower.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		814120572FAB689500BD0B70 /* FirepowerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FirepowerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		814120612FAB689500BD0B70 /* FirepowerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FirepowerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		814120782FAB68E800BD0B70 /* FirepowerActivityKitExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FirepowerActivityKitExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		8141207A2FAB68E800BD0B70 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		8141207C2FAB68E800BD0B70 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8141208D2FAB68EA00BD0B70 /* Exceptions for "FirepowerActivityKit" folder in "FirepowerActivityKitExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 814120772FAB68E800BD0B70 /* FirepowerActivityKitExtension */;
+		};
+		8141209E2FAB6A3200BD0B70 /* Exceptions for "Firepower" folder in "Firepower" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 814120492FAB689400BD0B70 /* Firepower */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		8141204C2FAB689400BD0B70 /* Firepower */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8141209E2FAB6A3200BD0B70 /* Exceptions for "Firepower" folder in "Firepower" target */,
+			);
+			path = Firepower;
+			sourceTree = "<group>";
+		};
+		8141205A2FAB689500BD0B70 /* FirepowerTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = FirepowerTests;
+			sourceTree = "<group>";
+		};
+		814120642FAB689500BD0B70 /* FirepowerUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = FirepowerUITests;
+			sourceTree = "<group>";
+		};
+		8141207E2FAB68E800BD0B70 /* FirepowerActivityKit */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8141208D2FAB68EA00BD0B70 /* Exceptions for "FirepowerActivityKit" folder in "FirepowerActivityKitExtension" target */,
+			);
+			path = FirepowerActivityKit;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		814120472FAB689400BD0B70 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		814120542FAB689500BD0B70 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8141205E2FAB689500BD0B70 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		814120752FAB68E800BD0B70 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8141207D2FAB68E800BD0B70 /* SwiftUI.framework in Frameworks */,
+				8141207B2FAB68E800BD0B70 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		814120412FAB689400BD0B70 = {
+			isa = PBXGroup;
+			children = (
+				8141204C2FAB689400BD0B70 /* Firepower */,
+				8141205A2FAB689500BD0B70 /* FirepowerTests */,
+				814120642FAB689500BD0B70 /* FirepowerUITests */,
+				8141207E2FAB68E800BD0B70 /* FirepowerActivityKit */,
+				814120792FAB68E800BD0B70 /* Frameworks */,
+				8141204B2FAB689400BD0B70 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		8141204B2FAB689400BD0B70 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				8141204A2FAB689400BD0B70 /* Firepower.app */,
+				814120572FAB689500BD0B70 /* FirepowerTests.xctest */,
+				814120612FAB689500BD0B70 /* FirepowerUITests.xctest */,
+				814120782FAB68E800BD0B70 /* FirepowerActivityKitExtension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		814120792FAB68E800BD0B70 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				8141207A2FAB68E800BD0B70 /* WidgetKit.framework */,
+				8141207C2FAB68E800BD0B70 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		814120492FAB689400BD0B70 /* Firepower */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8141206B2FAB689500BD0B70 /* Build configuration list for PBXNativeTarget "Firepower" */;
+			buildPhases = (
+				814120462FAB689400BD0B70 /* Sources */,
+				814120472FAB689400BD0B70 /* Frameworks */,
+				814120482FAB689400BD0B70 /* Resources */,
+				814120912FAB68EA00BD0B70 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8141208B2FAB68EA00BD0B70 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				8141204C2FAB689400BD0B70 /* Firepower */,
+			);
+			name = Firepower;
+			packageProductDependencies = (
+			);
+			productName = Firepower;
+			productReference = 8141204A2FAB689400BD0B70 /* Firepower.app */;
+			productType = "com.apple.product-type.application";
+		};
+		814120562FAB689500BD0B70 /* FirepowerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8141206E2FAB689500BD0B70 /* Build configuration list for PBXNativeTarget "FirepowerTests" */;
+			buildPhases = (
+				814120532FAB689500BD0B70 /* Sources */,
+				814120542FAB689500BD0B70 /* Frameworks */,
+				814120552FAB689500BD0B70 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				814120592FAB689500BD0B70 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				8141205A2FAB689500BD0B70 /* FirepowerTests */,
+			);
+			name = FirepowerTests;
+			packageProductDependencies = (
+			);
+			productName = FirepowerTests;
+			productReference = 814120572FAB689500BD0B70 /* FirepowerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		814120602FAB689500BD0B70 /* FirepowerUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 814120712FAB689500BD0B70 /* Build configuration list for PBXNativeTarget "FirepowerUITests" */;
+			buildPhases = (
+				8141205D2FAB689500BD0B70 /* Sources */,
+				8141205E2FAB689500BD0B70 /* Frameworks */,
+				8141205F2FAB689500BD0B70 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				814120632FAB689500BD0B70 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				814120642FAB689500BD0B70 /* FirepowerUITests */,
+			);
+			name = FirepowerUITests;
+			packageProductDependencies = (
+			);
+			productName = FirepowerUITests;
+			productReference = 814120612FAB689500BD0B70 /* FirepowerUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		814120772FAB68E800BD0B70 /* FirepowerActivityKitExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8141208E2FAB68EA00BD0B70 /* Build configuration list for PBXNativeTarget "FirepowerActivityKitExtension" */;
+			buildPhases = (
+				814120742FAB68E800BD0B70 /* Sources */,
+				814120752FAB68E800BD0B70 /* Frameworks */,
+				814120762FAB68E800BD0B70 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				8141207E2FAB68E800BD0B70 /* FirepowerActivityKit */,
+			);
+			name = FirepowerActivityKitExtension;
+			packageProductDependencies = (
+			);
+			productName = FirepowerActivityKitExtension;
+			productReference = 814120782FAB68E800BD0B70 /* FirepowerActivityKitExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		814120422FAB689400BD0B70 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2630;
+				LastUpgradeCheck = 2630;
+				TargetAttributes = {
+					814120492FAB689400BD0B70 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					814120562FAB689500BD0B70 = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = 814120492FAB689400BD0B70;
+					};
+					814120602FAB689500BD0B70 = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = 814120492FAB689400BD0B70;
+					};
+					814120772FAB68E800BD0B70 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+				};
+			};
+			buildConfigurationList = 814120452FAB689400BD0B70 /* Build configuration list for PBXProject "Firepower" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 814120412FAB689400BD0B70;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 8141204B2FAB689400BD0B70 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				814120492FAB689400BD0B70 /* Firepower */,
+				814120562FAB689500BD0B70 /* FirepowerTests */,
+				814120602FAB689500BD0B70 /* FirepowerUITests */,
+				814120772FAB68E800BD0B70 /* FirepowerActivityKitExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		814120482FAB689400BD0B70 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		814120552FAB689500BD0B70 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8141205F2FAB689500BD0B70 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		814120762FAB68E800BD0B70 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		814120462FAB689400BD0B70 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		814120532FAB689500BD0B70 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8141205D2FAB689500BD0B70 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		814120742FAB68E800BD0B70 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		814120592FAB689500BD0B70 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 814120492FAB689400BD0B70 /* Firepower */;
+			targetProxy = 814120582FAB689500BD0B70 /* PBXContainerItemProxy */;
+		};
+		814120632FAB689500BD0B70 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 814120492FAB689400BD0B70 /* Firepower */;
+			targetProxy = 814120622FAB689500BD0B70 /* PBXContainerItemProxy */;
+		};
+		8141208B2FAB68EA00BD0B70 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 814120772FAB68E800BD0B70 /* FirepowerActivityKitExtension */;
+			targetProxy = 8141208A2FAB68EA00BD0B70 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		814120692FAB689500BD0B70 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 89T7Q7LS36;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		8141206A2FAB689500BD0B70 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 89T7Q7LS36;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		8141206C2FAB689500BD0B70 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Firepower/Firepower.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 89T7Q7LS36;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Firepower/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blakenelson.Firepower;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8141206D2FAB689500BD0B70 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Firepower/Firepower.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 89T7Q7LS36;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Firepower/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blakenelson.Firepower;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		8141206F2FAB689500BD0B70 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 89T7Q7LS36;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blakenelson.FirepowerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Firepower.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Firepower";
+			};
+			name = Debug;
+		};
+		814120702FAB689500BD0B70 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 89T7Q7LS36;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blakenelson.FirepowerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Firepower.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Firepower";
+			};
+			name = Release;
+		};
+		814120722FAB689500BD0B70 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 89T7Q7LS36;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blakenelson.FirepowerUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Firepower;
+			};
+			name = Debug;
+		};
+		814120732FAB689500BD0B70 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 89T7Q7LS36;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blakenelson.FirepowerUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Firepower;
+			};
+			name = Release;
+		};
+		8141208F2FAB68EA00BD0B70 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 89T7Q7LS36;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FirepowerActivityKit/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FirepowerActivityKit;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blakenelson.Firepower.FirepowerActivityKit;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		814120902FAB68EA00BD0B70 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 89T7Q7LS36;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FirepowerActivityKit/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = FirepowerActivityKit;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.blakenelson.Firepower.FirepowerActivityKit;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		814120452FAB689400BD0B70 /* Build configuration list for PBXProject "Firepower" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				814120692FAB689500BD0B70 /* Debug */,
+				8141206A2FAB689500BD0B70 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8141206B2FAB689500BD0B70 /* Build configuration list for PBXNativeTarget "Firepower" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8141206C2FAB689500BD0B70 /* Debug */,
+				8141206D2FAB689500BD0B70 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8141206E2FAB689500BD0B70 /* Build configuration list for PBXNativeTarget "FirepowerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8141206F2FAB689500BD0B70 /* Debug */,
+				814120702FAB689500BD0B70 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		814120712FAB689500BD0B70 /* Build configuration list for PBXNativeTarget "FirepowerUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				814120722FAB689500BD0B70 /* Debug */,
+				814120732FAB689500BD0B70 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8141208E2FAB68EA00BD0B70 /* Build configuration list for PBXNativeTarget "FirepowerActivityKitExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8141208F2FAB68EA00BD0B70 /* Debug */,
+				814120902FAB68EA00BD0B70 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 814120422FAB689400BD0B70 /* Project object */;
+}
