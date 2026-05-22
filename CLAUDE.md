@@ -24,11 +24,47 @@ To resume from a checkpoint:
 
 ## Project state
 
-- v1: BOS hardcoded, TestFlight-only, manual Start Tracking button
-- Live Activity starts successfully (state=active, Dynamic Island working)
-- Push token obtained with pushType: .token
-- Lock screen display: under investigation (see checkpoint for details)
-- Backend push: not yet wired up end-to-end
+- v1 end-to-end verified: Live Activity starts, broadcast push received, lock screen + Dynamic Island update correctly
+- Broadcast push channel confirmed working (sandbox, App Store Connect channel `+pSGy0vgEfEAAKqhstn/Jg==`)
+- v2 shipped: daily game list (NHL Stats API), pinned teams, settings, local notifications, BGAppRefreshTask morning fetch
+- Pre-game notifications (10 min before puck drop for pinned teams) deep-link into app and auto-start the Live Activity
+- Next: seed initial ContentState from live-scores API when starting a mid-game Live Activity
+
+## Architecture: iOS app is a pure APNs channel subscriber
+
+**The iOS app never makes direct HTTP calls to the Firepower backend.**
+
+All game data reaches the app exclusively via APNs broadcast push to the team's channel.
+Channel IDs are created in App Store Connect → App ID → Push Notifications → Broadcast
+Notifications, and hardcoded in `Firepower/NHLTeams.swift` under `channelTokenBase64`.
+
+Do not add URLSession calls, REST clients, or any other direct backend communication
+to the app target. If schedule/game data is needed in the UI, it either:
+- arrives through the APNs channel push payload, or
+- comes from the public NHL Stats API (api-web.nhle.com) — never from the Firepower backend.
+
+## APNs broadcast push — correct endpoint (verified 2026-05-10)
+
+```
+POST https://api.sandbox.push.apple.com/4/broadcasts/apps/{bundleID}
+
+Headers:
+  authorization:   bearer {jwt}       ← ES256 JWT signed with .p8 key
+  apns-push-type:  liveactivity
+  apns-channel-id: {channelID}        ← base64 channel ID from App Store Connect; NOT in URL
+  apns-expiration: {unix timestamp}   ← required (non-zero) for "No Message Stored" channels
+  content-type:    application/json
+
+NOTE: apns-topic is NOT used. The bundle ID is in the URL path.
+NOTE: no running device/activity is required to push to a channel.
+```
+
+Errors encountered during discovery:
+- `BroadcastFeatureNotEnabled` — enable Broadcast Push in App Store Connect for the App ID
+- `ChannelNotRegistered`       — channel ID not created in App Store Connect yet
+- `BadPath`                    — wrong URL structure (not `/3/live-activity/` or `/3/device/`)
+
+iOS app entitlement required: `com.apple.developer.usernotifications.broadcasting`
 
 ## Stack
 
