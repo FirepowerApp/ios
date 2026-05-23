@@ -9,7 +9,8 @@ struct BackgroundTaskManager {
 
     static func registerHandlers() {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: refreshTaskID, using: nil) { task in
-            handleRefresh(task: task as! BGAppRefreshTask)
+            guard let refreshTask = task as? BGAppRefreshTask else { return }
+            handleRefresh(task: refreshTask)
         }
     }
 

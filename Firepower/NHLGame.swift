@@ -14,8 +14,10 @@ struct NHLGame: Identifiable, Codable {
     }
 
     var startDate: Date? {
-        ISO8601DateFormatter().date(from: startTimeUTC)
+        NHLGame.isoFormatter.date(from: startTimeUTC)
     }
+
+    private static let isoFormatter = ISO8601DateFormatter()
 
     var formattedStartTime: String {
         guard let date = startDate else { return "TBD" }

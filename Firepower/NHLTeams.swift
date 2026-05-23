@@ -64,7 +64,5 @@ extension NHLTeam {
     static func team(for tricode: String) -> NHLTeam? {
         all.first { $0.tricode.uppercased() == tricode.uppercased() }
     }
-
-    static let boston = NHLTeam.team(for: "BOS")!
 }
 

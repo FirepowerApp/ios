@@ -17,10 +17,6 @@ struct GameRowView: View {
         return activityManager.currentActivity?.attributes.gameID == String(game.id)
     }
 
-    private var isPinned: Bool {
-        game.pinnedTricode(from: prefs.pinnedTeams) != nil
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 16) {

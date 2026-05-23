@@ -31,12 +31,17 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     }
 
     // Foreground notification display
+    // Suppress pre-game banners when the user is already in the app viewing the game list.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([.banner, .sound])
+        if notification.request.identifier.hasPrefix("firepower-pregame-") {
+            completionHandler([])
+        } else {
+            completionHandler([.banner, .sound])
+        }
     }
 
     // Tap handling — pre-game alerts carry game info in userInfo;

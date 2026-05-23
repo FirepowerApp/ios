@@ -44,11 +44,15 @@ struct NHLScheduleClient {
     }
 
     static func todayString() -> String {
+        dateFormatter.string(from: Date())
+    }
+
+    private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
         f.timeZone = .current
-        return f.string(from: Date())
-    }
+        return f
+    }()
 }
 
 // MARK: - Decodable shapes

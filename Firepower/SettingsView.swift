@@ -14,7 +14,9 @@ struct SettingsView: View {
             Form {
                 pinnedTeamsSection
                 notificationsSection
+                #if DEBUG
                 debugSection
+                #endif
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -39,6 +41,7 @@ struct SettingsView: View {
         }
     }
 
+    // Workaround: SwiftUI type inference fails when ForEach<[NHLTeam]> is inlined directly into Section
     @ViewBuilder
     private func teamRowList() -> some View {
         let teams: [NHLTeam] = NHLTeam.all
@@ -116,6 +119,7 @@ struct SettingsView: View {
 
     // MARK: - Debug
 
+    #if DEBUG
     private var debugSection: some View {
         Section("Debug") {
             if let lastAutoStart = UserDefaults.standard.string(forKey: "lastAutoStartLog") {
@@ -139,6 +143,7 @@ struct SettingsView: View {
             }
         }
     }
+    #endif
 
     // MARK: - Permission helpers
 

@@ -18,9 +18,6 @@ struct TodayView: View {
 
     @State private var showingSettings = false
 
-    // Filled in when the app opens via a pre-game notification tap
-    @State private var pendingAutoStartGameID: String? = nil
-
     var body: some View {
         NavigationStack {
             Group {
