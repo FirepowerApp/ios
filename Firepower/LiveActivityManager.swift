@@ -17,6 +17,7 @@ final class LiveActivityManager: ObservableObject {
 
     @Published private(set) var state: ActivityState = .idle
     @Published private(set) var currentActivity: Activity<FirepowerActivityAttributes>?
+    @Published private(set) var pushToken: String?
 
     enum ActivityState: Equatable {
         case idle
@@ -74,10 +75,22 @@ final class LiveActivityManager: ObservableObject {
         )
 
         do {
+            guard let team = NHLTeam.team(for: homeTeam) else {
+                print("LiveActivityManager: unknown team \(homeTeam)")
+                state = .idle
+                return
+            }
+
+            guard !team.channelId.isEmpty else {
+                print("LiveActivityManager: missing channel ID for \(homeTeam)")
+                state = .idle
+                return
+            }
+            
             let activity = try Activity.request(
                 attributes: attributes,
                 content: content,
-                pushType: .token
+                pushType: .channel(team.channelId)
             )
             print("LiveActivityManager: activity started with id=\(activity.id) activityState=\(activity.activityState)")
             currentActivity = activity
@@ -89,9 +102,10 @@ final class LiveActivityManager: ObservableObject {
                 }
             }
 
-            // Subscribe to channel token updates (needed for server-side push registration).
-            // For broadcast push this is the channel token; for per-device it's the device token.
-            Task { await observePushTokenUpdates(activity: activity, teamTricode: homeTeam) }
+            // Log push token updates for debugging. The backend delivers via the
+            // broadcast channel (nhl-team-{tricode}); no per-device registration needed.
+            Task { await logPushTokenUpdates(activity: activity, teamTricode: homeTeam) }
+            Task { await logContentStateUpdates(activity: activity, teamTricode: homeTeam) }
         } catch {
             state = .idle
             print("LiveActivityManager: failed to start activity: \(error)")
@@ -104,23 +118,27 @@ final class LiveActivityManager: ObservableObject {
         guard let activity = currentActivity else { return }
         await activity.end(nil, dismissalPolicy: .immediate)
         currentActivity = nil
+        pushToken = nil
         state = .idle
     }
 
-    // MARK: - Push token / channel observation
+    // MARK: - Push token logging
 
-    private func observePushTokenUpdates(activity: Activity<FirepowerActivityAttributes>, teamTricode: String) async {
+    private func logContentStateUpdates(activity: Activity<FirepowerActivityAttributes>, teamTricode: String) async {
+        for await state in activity.contentStateUpdates {
+            print("LiveActivityManager: [\(teamTricode)] push received ↓")
+            print("  score:     \(state.homeScore) – \(state.awayScore)")
+            print("  xG:        \(String(format: "%.2f", state.homeXG)) – \(String(format: "%.2f", state.awayXG))")
+            print("  gameState: \(state.gameState)")
+            if let event = state.lastEvent { print("  lastEvent: \(event)") }
+        }
+    }
+
+    private func logPushTokenUpdates(activity: Activity<FirepowerActivityAttributes>, teamTricode: String) async {
         for await tokenData in activity.pushTokenUpdates {
-            let tokenHex = tokenData.map { String(format: "%02x", $0) }.joined()
-            print("LiveActivityManager: push token for \(teamTricode): \(tokenHex)")
-            // TODO (v1): log the token. The backend uses broadcast push to a static
-            // channel ID ("nhl-team-BOS") — for broadcast we don't need to register
-            // per-device tokens. Keep this for observability and for when Push-to-Start
-            // (v2) requires token registration.
-            //
-            // For per-device push (non-broadcast fallback), send this token to:
-            //   POST /api/v1/teams/{tricode}/register-push-token
-            //   body: { "token": tokenHex }
+            let hex = tokenData.map { String(format: "%02x", $0) }.joined()
+            print("LiveActivityManager: channel nhl-team-\(teamTricode) push token: \(hex)")
+            pushToken = hex
         }
     }
 }
