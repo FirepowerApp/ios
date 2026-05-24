@@ -1,34 +1,13 @@
 # Firepower iOS
 
-NHL hockey Live Activity app. Shows score + MoneyPuck xG data on lock screen and Dynamic Island.
+NHL hockey Live Activity app. Shows scores on the lock screen and Dynamic Island via APNs broadcast push. Includes a daily game list (NHL Stats API), pinned teams, pre-game notifications, and background schedule refresh.
 
 ## Planning docs
 
-All design decisions, todos, test plan, and backend Go files are at:
-
-```
-~/Documents/Firepower/planning/
-```
-
-Key files:
-- `design-20260504-094508.md` — full design doc (CEO, design, eng reviews done)
-- `todos.md` — 16 deferred items with priority
-- `test-plan-20260504.md` — QA test plan
-- `XCODE-SETUP.md` — one-time Xcode setup (already completed)
-- `backend/` — Go files for the liveactivity notification package (copy to ~/git/Firepower/backend/)
-
-To resume from a checkpoint:
-```
-/checkpoint resume
-```
-
-## Project state
-
-- v1 end-to-end verified: Live Activity starts, broadcast push received, lock screen + Dynamic Island update correctly
-- Broadcast push channel confirmed working (sandbox, App Store Connect channel `+pSGy0vgEfEAAKqhstn/Jg==`)
-- v2 shipped: daily game list (NHL Stats API), pinned teams, settings, local notifications, BGAppRefreshTask morning fetch
-- Pre-game notifications (10 min before puck drop for pinned teams) deep-link into app and auto-start the Live Activity
-- Next: seed initial ContentState from live-scores API when starting a mid-game Live Activity
+Planning materials live at `~/Documents/Firepower/planning/`:
+- `todos.md` — deferred work with priority
+- `test-plan-*.md` — QA test plan
+- `backend/` — Go files for the Live Activity notification package (copy to `~/git/Firepower/backend/`)
 
 ## Architecture: iOS app is a pure APNs channel subscriber
 
@@ -43,7 +22,7 @@ to the app target. If schedule/game data is needed in the UI, it either:
 - arrives through the APNs channel push payload, or
 - comes from the public NHL Stats API (api-web.nhle.com) — never from the Firepower backend.
 
-## APNs broadcast push — correct endpoint (verified 2026-05-10)
+## APNs broadcast push endpoint
 
 ```
 POST https://api.sandbox.push.apple.com/4/broadcasts/apps/{bundleID}
@@ -59,11 +38,6 @@ NOTE: apns-topic is NOT used. The bundle ID is in the URL path.
 NOTE: no running device/activity is required to push to a channel.
 ```
 
-Errors encountered during discovery:
-- `BroadcastFeatureNotEnabled` — enable Broadcast Push in App Store Connect for the App ID
-- `ChannelNotRegistered`       — channel ID not created in App Store Connect yet
-- `BadPath`                    — wrong URL structure (not `/3/live-activity/` or `/3/device/`)
-
 iOS app entitlement required: `com.apple.developer.usernotifications.broadcasting`
 
 ## Stack
@@ -76,6 +50,6 @@ iOS app entitlement required: `com.apple.developer.usernotifications.broadcastin
 
 ## Key files
 
-- `Firepower/` — main app target (ContentView, LiveActivityManager, FirepowerApp)
+- `Firepower/` — main app target (TodayView, LiveActivityManager, FirepowerApp, NHLScheduleClient)
 - `FirepowerActivityKit/` — widget extension (FirepowerWidget, FirepowerActivityAttributes)
 - `FirepowerActivityAttributes.swift` — must be in BOTH targets (Target Membership)
