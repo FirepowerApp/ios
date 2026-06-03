@@ -1,5 +1,6 @@
 import ActivityKit
 import Combine
+import FirepowerShared
 import Foundation
 
 // LiveActivityManager controls the lifecycle of the Live Activity for the tracked team.
@@ -61,11 +62,20 @@ final class LiveActivityManager: ObservableObject {
 
         state = .starting
 
+        // Resolve which team's logo to show in DI minimal.
+        // Priority: pinned home > pinned away > home fallback.
+        let pinned = UserPreferences.shared.pinnedTeams
+        let pinnedTricode: String?
+        if pinned.contains(homeTeam)      { pinnedTricode = homeTeam }
+        else if pinned.contains(awayTeam) { pinnedTricode = awayTeam }
+        else                              { pinnedTricode = nil }
+
         let attributes = FirepowerActivityAttributes(
             sport: "nhl",
             homeTeam: homeTeam,
             awayTeam: awayTeam,
-            gameID: gameID
+            gameID: gameID,
+            pinnedTricode: pinnedTricode
         )
         let initialState = FirepowerActivityAttributes.ContentState()
 
@@ -127,10 +137,12 @@ final class LiveActivityManager: ObservableObject {
     private func logContentStateUpdates(activity: Activity<FirepowerActivityAttributes>, teamTricode: String) async {
         for await state in activity.contentStateUpdates {
             print("LiveActivityManager: [\(teamTricode)] push received ↓")
-            print("  score:     \(state.homeScore) – \(state.awayScore)")
-            print("  xG:        \(String(format: "%.2f", state.homeXG)) – \(String(format: "%.2f", state.awayXG))")
-            print("  gameState: \(state.gameState)")
-            if let event = state.lastEvent { print("  lastEvent: \(event)") }
+            print("  score:       \(state.homeScore) – \(state.awayScore)")
+            print("  xG:          \(String(format: "%.2f", state.homeXG)) – \(String(format: "%.2f", state.awayXG))")
+            print("  gameState:   \(state.gameState)")
+            if let type_ = state.eventType   { print("  eventType:   \(type_)") }
+            if let detail = state.eventDetail, !detail.isEmpty { print("  eventDetail: \(detail)") }
+            if let team   = state.eventTeam  { print("  eventTeam:   \(team)") }
         }
     }
 

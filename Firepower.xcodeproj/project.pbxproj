@@ -193,6 +193,7 @@
 			);
 			name = Firepower;
 			packageProductDependencies = (
+				FF00000002AB6894BD0B7002 /* FirepowerShared */,
 			);
 			productName = Firepower;
 			productReference = 8141204A2FAB689400BD0B70 /* Firepower.app */;
@@ -261,6 +262,7 @@
 			);
 			name = FirepowerActivityKitExtension;
 			packageProductDependencies = (
+				FF00000003AB6894BD0B7003 /* FirepowerShared */,
 			);
 			productName = FirepowerActivityKitExtension;
 			productReference = 814120782FAB68E800BD0B70 /* FirepowerActivityKitExtension.appex */;
@@ -303,6 +305,9 @@
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8141204B2FAB689400BD0B70 /* Products */;
+			packageReferences = (
+				FF00000001AB6894BD0B7001 /* XCLocalSwiftPackageReference "FirepowerShared" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -751,6 +756,26 @@
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		FF00000001AB6894BD0B7001 /* XCLocalSwiftPackageReference "FirepowerShared" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = FirepowerShared;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		FF00000002AB6894BD0B7002 /* FirepowerShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FF00000001AB6894BD0B7001 /* XCLocalSwiftPackageReference "FirepowerShared" */;
+			productName = FirepowerShared;
+		};
+		FF00000003AB6894BD0B7003 /* FirepowerShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FF00000001AB6894BD0B7001 /* XCLocalSwiftPackageReference "FirepowerShared" */;
+			productName = FirepowerShared;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCConfigurationList section */
 		814120452FAB689400BD0B70 /* Build configuration list for PBXProject "Firepower" */ = {
