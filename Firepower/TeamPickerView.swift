@@ -1,3 +1,4 @@
+import FirepowerShared
 import SwiftUI
 
 // TeamPickerView — shown on first launch when no team is selected,

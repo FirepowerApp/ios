@@ -58,9 +58,11 @@ public enum NHLColor {
     // Values < 0.15 cover known collision pairs (BOS gold vs PIT gold, NYR vs NYI blue).
     static let collisionThreshold: Double = 0.15
 
-    // A color is "too dark" for the Live Activity's ~85% black background
-    // when its luminance is below this value.
-    static let darkPrimaryLuminanceThreshold: Double = 0.08
+    // A color is "too dark" for the Live Activity's ~85% black background when its
+    // luminance is below this value. 0.015 catches near-black teams (LAK #111111,
+    // SEA #001628, EDM #041E42) but preserves visually distinct dark colors like
+    // NYR royal blue (#0038A8, lum ~0.058) and STL blue (#002F87, lum ~0.030).
+    static let darkPrimaryLuminanceThreshold: Double = 0.015
 
     /// Resolve badge fill colors for home and away teams, applying dark-primary
     /// guard then collision rule.

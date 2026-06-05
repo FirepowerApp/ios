@@ -8,7 +8,7 @@ import Foundation
 // Source of truth: DESIGN.md — "primaryColor" is the badge fill color first choice;
 // "secondaryColor" is the fallback for dark-primary guard and collision resolution.
 
-public struct NHLTeamColors {
+public struct NHLTeamColors: Sendable {
     public let tricode: String
     public let primaryColor: String    // hex e.g. "#FFB81C"
     public let secondaryColor: String  // hex e.g. "#000000"

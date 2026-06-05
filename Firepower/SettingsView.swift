@@ -1,3 +1,4 @@
+import FirepowerShared
 import SwiftUI
 import UserNotifications
 

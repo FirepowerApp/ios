@@ -132,6 +132,61 @@ final class LiveActivityManager: ObservableObject {
         state = .idle
     }
 
+    // MARK: - Debug (DEBUG builds only)
+
+#if DEBUG
+    /// Starts a fake BOS@NYR Live Activity driven by local state updates.
+    /// No APNs channel is needed — call updateDebugState() to push new state.
+    func startDebugActivity(initialState: FirepowerActivityAttributes.ContentState) async {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            state = .denied
+            return
+        }
+
+        if let existing = currentActivity,
+           existing.activityState != .ended,
+           existing.activityState != .dismissed {
+            state = .tracking
+            return
+        }
+
+        state = .starting
+
+        let attributes = FirepowerActivityAttributes(
+            sport: "nhl",
+            homeTeam: "BOS",
+            awayTeam: "NYR",
+            gameID: "debug-0",
+            pinnedTricode: "BOS"
+        )
+        let content = ActivityContent(state: initialState, staleDate: Date().addingTimeInterval(3600))
+
+        do {
+            // .token works in the simulator and doesn't need the broadcasting
+            // entitlement. APNs pushes won't land (no server pushing to us),
+            // but Activity.update() drives state changes fine for local testing.
+            let activity = try Activity.request(
+                attributes: attributes,
+                content: content,
+                pushType: .token
+            )
+            currentActivity = activity
+            state = .tracking
+            print("Debug Live Activity started: \(activity.id)")
+        } catch {
+            state = .idle
+            print("Debug Live Activity failed to start: \(error)")
+        }
+    }
+
+    /// Drives the debug activity to a new state without APNs.
+    func updateDebugState(_ newState: FirepowerActivityAttributes.ContentState) async {
+        guard let activity = currentActivity else { return }
+        let content = ActivityContent(state: newState, staleDate: Date().addingTimeInterval(3600))
+        await activity.update(content)
+    }
+#endif
+
     // MARK: - Push token logging
 
     private func logContentStateUpdates(activity: Activity<FirepowerActivityAttributes>, teamTricode: String) async {

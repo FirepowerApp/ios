@@ -151,9 +151,9 @@ private struct LockScreenView: View {
         return HStack(alignment: .center, spacing: 0) {
             // Home side
             HStack(spacing: 8) {
-                TeamBadge(tricode: attributes.homeTeam, opponent: attributes.awayTeam,
-                          isAway: false, isWinner: homeIsWinner, showWinnerPill: state.isEnded)
-                teamLogo(attributes.homeTeam, size: 32)
+                TeamBadge(tricode: attributes.homeTeam,
+                          homeTricode: attributes.homeTeam, awayTricode: attributes.awayTeam,
+                          isWinner: homeIsWinner, showWinnerPill: state.isEnded)
                 Text("\(state.homeScore)")
                     .font(.system(.largeTitle, design: .rounded, weight: .heavy).monospacedDigit())
                     .opacity(state.isEnded && awayIsWinner ? 0.55 : 1)
@@ -177,9 +177,9 @@ private struct LockScreenView: View {
                 Text("\(state.awayScore)")
                     .font(.system(.largeTitle, design: .rounded, weight: .heavy).monospacedDigit())
                     .opacity(state.isEnded && homeIsWinner ? 0.55 : 1)
-                teamLogo(attributes.awayTeam, size: 32)
-                TeamBadge(tricode: attributes.awayTeam, opponent: attributes.homeTeam,
-                          isAway: true, isWinner: awayIsWinner, showWinnerPill: state.isEnded)
+                TeamBadge(tricode: attributes.awayTeam,
+                          homeTricode: attributes.homeTeam, awayTricode: attributes.awayTeam,
+                          isWinner: awayIsWinner, showWinnerPill: state.isEnded)
             }
         }
         .padding(.horizontal, 16)
@@ -212,48 +212,36 @@ private struct LockScreenView: View {
 // MARK: - TeamBadge
 
 private struct TeamBadge: View {
-    let tricode: String
-    let opponent: String
-    let isAway: Bool        // true → this badge is the away team (collision uses opponent as home)
+    let tricode: String        // the team THIS badge represents
+    let homeTricode: String    // real home team for the game
+    let awayTricode: String    // real away team for the game
     let isWinner: Bool
     let showWinnerPill: Bool
 
     var body: some View {
-        let home = NHLTeamColors.colors(for: tricode)
-        let away = NHLTeamColors.colors(for: opponent)
+        let home = NHLTeamColors.colors(for: homeTricode)
+        let away = NHLTeamColors.colors(for: awayTricode)
 
-        let homePri = home?.primaryColor   ?? "#888888"
-        let homeSec = home?.secondaryColor ?? "#FFFFFF"
-        let awayPri = away?.primaryColor   ?? "#888888"
-        let awaySec = away?.secondaryColor ?? "#FFFFFF"
-
-        // Resolve fill: apply dark-primary guard and collision rule.
-        // badgeColors() treats first arg as home. For the away badge, swap arg order so
-        // "self" is always first — then take the home result. This ensures the collision
-        // rule sees our color as home and may swap the opponent's color, not ours.
-        let resolvedColors = isAway
-            ? NHLColor.badgeColors(homePrimary: awayPri, homeSecondary: awaySec,
-                                   awayPrimary: homePri, awaySecondary: homeSec)
-            : NHLColor.badgeColors(homePrimary: homePri, homeSecondary: homeSec,
-                                   awayPrimary: awayPri, awaySecondary: awaySec)
-        let fill = resolvedColors.home   // always "home" = self in the arg order above
-        let selfSec = isAway ? awaySec : homeSec
+        // badgeColors() returns (home, away) with the dark-primary guard and the
+        // collision rule already applied to the away side. We just pick our side —
+        // always pass the real home/away order so the result is correct for both badges.
+        let (homeFill, awayFill) = NHLColor.badgeColors(
+            homePrimary: home?.primaryColor ?? "#888888", homeSecondary: home?.secondaryColor ?? "#FFFFFF",
+            awayPrimary: away?.primaryColor ?? "#888888", awaySecondary: away?.secondaryColor ?? "#FFFFFF"
+        )
+        let isHome = (tricode == homeTricode)
+        let fill = isHome ? homeFill : awayFill
+        let selfSec = (isHome ? home : away)?.secondaryColor ?? "#FFFFFF"
         let textColor = NHLColor.badgeTextColor(fill: fill, secondary: Color(hex: selfSec))
 
         ZStack {
             RoundedRectangle(cornerRadius: 4)
                 .fill(fill)
-                .frame(width: 34, height: 20)
+                .frame(width: 44, height: 26)
 
-            if showWinnerPill && isWinner {
-                Text("WIN")
-                    .font(.system(size: 8, weight: .heavy))
-                    .foregroundStyle(textColor)
-            } else {
-                Text(tricode)
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(textColor)
-            }
+            Text(showWinnerPill && isWinner ? "WIN" : tricode)
+                .font(.system(size: 12, weight: .heavy))
+                .foregroundStyle(textColor)
         }
     }
 }
@@ -280,9 +268,9 @@ private func teamSide(
 @ViewBuilder
 private func xgRow(home: Double, away: Double) -> some View {
     HStack {
-        Text("\(String(format: "%.1f", home)) xG")
+        Text("xG: \(String(format: "%.1f", home))")
         Spacer()
-        Text("xG \(String(format: "%.1f", away))")
+        Text("xG: \(String(format: "%.1f", away))")
     }
     .padding(.horizontal, 16)
     .font(.caption.monospacedDigit())
@@ -298,29 +286,18 @@ private func eventLine(
         let detail = state.resolvedEventDetail.flatMap { $0.isEmpty ? nil : $0 }
         let label: String = {
             switch type_ {
-            case "goal":    return detail.map { "Goal — \($0)" } ?? "Goal"
-            case "penalty": return detail.map { "Penalty — \($0)" } ?? "Penalty"
+            case "goal":    return detail.map { "Goal, \($0)" } ?? "Goal"
+            case "penalty": return detail.map { "Penalty, \($0)" } ?? "Penalty"
             default:        return ""
             }
         }()
-        let alignHome = (state.resolvedEventTeam ?? homeTeam) == homeTeam
 
-        HStack {
-            if alignHome {
-                Text(label)
-                    .font(.caption.italic())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                Spacer()
-            } else {
-                Spacer()
-                Text(label)
-                    .font(.caption.italic())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-        }
-        .padding(.horizontal, 16)
+        Text(label)
+            .font(.caption.italic())
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.horizontal, 16)
     }
 }
 

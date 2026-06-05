@@ -1,5 +1,6 @@
-import SwiftUI
 import ActivityKit
+import FirepowerShared
+import SwiftUI
 
 struct GameRowView: View {
 
