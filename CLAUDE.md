@@ -78,3 +78,4 @@ The iOS `ContentState` (in `FirepowerShared`) and the backend `contentState` str
 - `FirepowerShared/` — local Swift package shared by app and widget (FirepowerActivityAttributes, NHLColor, NHLTeamColors)
 - `FirepowerActivityKit/` — widget extension (FirepowerWidget, FirepowerActivityKitBundle)
 - `FirepowerShared/Sources/FirepowerShared/FirepowerActivityAttributes.swift` — single source of truth for wire format; both targets import `FirepowerShared`
+- `DESIGN.md` — design system for the Live Activity + app (team-color rules, typography, xG bar, accessibility floor)
