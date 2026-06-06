@@ -4,10 +4,10 @@ NHL hockey Live Activity app. Shows scores on the lock screen and Dynamic Island
 
 ## Planning docs
 
-Planning materials live at `~/Documents/Firepower/planning/`:
+Planning materials live in a local working directory outside this repo (referred to as `$PLANNING` below). They are not committed here:
 - `todos.md` — deferred work with priority
 - `test-plan-*.md` — QA test plan
-- `backend/` — scratch copies of backend Go files for local iteration; copy to `~/git/Firepower/backend/` when ready (see Backend repo section below)
+- `backend/` — scratch copies of backend Go files for local iteration; copy into your local `FirepowerApp/backend` clone when ready (see Backend repo section below)
 - `live-activity-redesign.md` — design + eng review plan for the Live Activity redesign (branch: `NelsonBlakeN/live-activity-redesign`)
 
 ## Architecture: iOS app is a pure APNs channel subscriber
@@ -47,27 +47,27 @@ iOS app entitlement required: `com.apple.developer.usernotifications.broadcastin
 - Widget extension target: FirepowerActivityKit
 - Bundle ID: com.blakenelson.Firepower
 - Team ID: 89T7Q7LS36
-- Backend: Go, at `~/git/Firepower/backend/` — **separate git repo**, separate PRs
+- Backend: Go, in the **separate `FirepowerApp/backend` repo** — separate PRs
 
 ## Backend repo
 
-The backend lives at `~/git/Firepower/backend/` and is a separate repository from this iOS project.
+The push backend is a separate repository: `FirepowerApp/backend`. Clone it wherever you like (paths below use `$BACKEND` for your local clone).
 
-**Do not commit backend changes here.** Backend changes go to `~/git/Firepower/backend/` and are submitted as separate PRs in that repo.
+**Do not commit backend changes in this iOS repo.** Backend changes go to `FirepowerApp/backend` and are submitted as separate PRs there.
 
-The planning directory at `~/Documents/Firepower/planning/backend/` is a scratch/draft area for working on backend changes locally before copying them to the real repo. When backend changes are ready, copy them with:
+The backend planning scratch (a local-only draft area, e.g. `$PLANNING/backend/`) is where you iterate on backend changes before copying them into your `$BACKEND` clone. When ready, copy them across:
 
 ```bash
-cp ~/Documents/Firepower/planning/backend/watchgameupdates/internal/notification/liveactivity/formatter.go \
-   ~/git/Firepower/backend/watchgameupdates/internal/notification/liveactivity/formatter.go
-# repeat for other changed files, then cd ~/git/Firepower/backend && git commit
+cp "$PLANNING/backend/watchgameupdates/internal/notification/liveactivity/formatter.go" \
+   "$BACKEND/watchgameupdates/internal/notification/liveactivity/formatter.go"
+# repeat for other changed files, then: cd "$BACKEND" && git commit
 ```
 
 ## iOS ↔ Backend wire format coordination
 
 The iOS `ContentState` (in `FirepowerShared`) and the backend `contentState` struct in `formatter.go` must stay in sync. When changing the wire format:
 
-1. **Backend branch first:** Create the backend branch (e.g. `NelsonBlakeN/live-activity-event-fields` in `~/git/Firepower/backend/`).
+1. **Backend branch first:** Create the backend branch (e.g. `NelsonBlakeN/live-activity-event-fields`) in the `FirepowerApp/backend` repo.
 2. **iOS is backward-compatible by default:** `ContentState` decodes new fields as optional and falls back to legacy fields (`lastEvent`) via `resolved*` accessors. The iOS change can ship **before or after** the backend change.
 3. **Deployment order (recommended):** Ship the iOS update first (App Store review takes ~24h), then deploy the backend. The iOS app degrades gracefully on the old backend.
 4. **Remove legacy fields** once the new backend has been live for one release cycle and `lastEvent` is no longer emitted. The `private var lastEvent` field in `ContentState` is explicitly marked for removal.

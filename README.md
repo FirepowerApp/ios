@@ -61,7 +61,7 @@ xcodebuild build -scheme Firepower \
 
 ## Backend
 
-The push backend is a Go service in a **separate repository** at `~/git/Firepower/backend/`. It watches NHL games and pushes Live Activity updates to the APNs broadcast channels. iOS and backend changes are separate PRs in separate repos. See [CLAUDE.md](CLAUDE.md) for the wire-format coordination and deployment order.
+The push backend is a Go service in a **separate repository** (`FirepowerApp/backend`). It watches NHL games and pushes Live Activity updates to the APNs broadcast channels. iOS and backend changes are separate PRs in separate repos. See [CLAUDE.md](CLAUDE.md) for the wire-format coordination and deployment order.
 
 ## More docs
 
