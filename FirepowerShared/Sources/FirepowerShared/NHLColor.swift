@@ -5,8 +5,8 @@ import UIKit
 //
 // Design system rules (from DESIGN.md):
 //   1. Primary first: start with primaryColor.
-//   2. Dark-primary guard: if primary luminance < 0.08 on the dark widget background,
-//      swap to secondaryColor.
+//   2. Dark-primary guard: if primary luminance < darkPrimaryLuminanceThreshold on the
+//      dark widget background, swap to secondaryColor.
 //   3. Collision rule: if home and away resolved colors are perceptually similar
 //      (normalized RGB distance < 0.15), away swaps to its secondaryColor.
 //   4. Foreground on fill: white when fill luminance < 0.5, else secondaryColor.

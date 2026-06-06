@@ -32,35 +32,23 @@ struct FirepowerWidget: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
+                    let winner = context.state.winnerTricode(
+                        homeTeam: context.attributes.homeTeam, awayTeam: context.attributes.awayTeam)
                     teamSide(
                         tricode: context.attributes.homeTeam,
                         score: context.state.homeScore,
                         logoSize: 24,
-                        isWinner: context.state.isEnded &&
-                            context.state.winnerTricode(
-                                homeTeam: context.attributes.homeTeam,
-                                awayTeam: context.attributes.awayTeam) == context.attributes.homeTeam,
-                        isLoser: context.state.isEnded &&
-                            context.state.winnerTricode(
-                                homeTeam: context.attributes.homeTeam,
-                                awayTeam: context.attributes.awayTeam) == context.attributes.awayTeam,
-                        attributes: context.attributes
+                        isLoser: winner == context.attributes.awayTeam
                     )
                 }
                 DynamicIslandExpandedRegion(.trailing) {
+                    let winner = context.state.winnerTricode(
+                        homeTeam: context.attributes.homeTeam, awayTeam: context.attributes.awayTeam)
                     teamSide(
                         tricode: context.attributes.awayTeam,
                         score: context.state.awayScore,
                         logoSize: 24,
-                        isWinner: context.state.isEnded &&
-                            context.state.winnerTricode(
-                                homeTeam: context.attributes.homeTeam,
-                                awayTeam: context.attributes.awayTeam) == context.attributes.awayTeam,
-                        isLoser: context.state.isEnded &&
-                            context.state.winnerTricode(
-                                homeTeam: context.attributes.homeTeam,
-                                awayTeam: context.attributes.awayTeam) == context.attributes.homeTeam,
-                        attributes: context.attributes
+                        isLoser: winner == context.attributes.homeTeam
                     )
                 }
                 DynamicIslandExpandedRegion(.center) {
@@ -130,15 +118,13 @@ private struct LockScreenView: View {
     // MARK: Final
 
     private var finalView: some View {
-        let winner = state.winnerTricode(homeTeam: attributes.homeTeam, awayTeam: attributes.awayTeam)
-        return VStack(spacing: 8) {
+        VStack(spacing: 8) {
             scoreRow
             XGSection(homeXG: state.homeXG, awayXG: state.awayXG,
                       homeTricode: attributes.homeTeam, awayTricode: attributes.awayTeam)
                 .padding(.top, 2)
         }
         .padding(.vertical, 12)
-        .environment(\.winnerTricode, winner)
     }
 
     // MARK: Score row
@@ -262,8 +248,10 @@ private struct XGSection: View {
             homePrimary: h?.primaryColor ?? "#888888", homeSecondary: h?.secondaryColor ?? "#FFFFFF",
             awayPrimary: a?.primaryColor ?? "#888888", awaySecondary: a?.secondaryColor ?? "#FFFFFF"
         )
-        let total = max(homeXG + awayXG, 0.1)
-        let homeFraction = homeXG / total
+        // Split 50/50 until there's meaningful xG, so a 0-0 game doesn't render
+        // a bar that implies one team is dominating.
+        let combined = homeXG + awayXG
+        let homeFraction = combined < 0.1 ? 0.5 : homeXG / combined
 
         return VStack(spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
@@ -301,9 +289,7 @@ private func teamSide(
     tricode: String,
     score: Int,
     logoSize: CGFloat,
-    isWinner: Bool,
-    isLoser: Bool,
-    attributes: FirepowerActivityAttributes
+    isLoser: Bool
 ) -> some View {
     HStack(spacing: 4) {
         teamLogo(tricode, size: logoSize)
@@ -360,19 +346,6 @@ private func teamLogo(_ tricode: String, size: CGFloat) -> some View {
     } else {
         Text(tricode)
             .font(.system(size: size * 0.6, weight: .bold, design: .rounded))
-    }
-}
-
-// MARK: - Environment key for winner tricode
-
-private struct WinnerTricodeKey: EnvironmentKey {
-    static let defaultValue: String? = nil
-}
-
-private extension EnvironmentValues {
-    var winnerTricode: String? {
-        get { self[WinnerTricodeKey.self] }
-        set { self[WinnerTricodeKey.self] = newValue }
     }
 }
 
