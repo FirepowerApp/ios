@@ -1,5 +1,6 @@
 import ActivityKit
 import Combine
+import FirepowerShared
 import Foundation
 
 // LiveActivityManager controls the lifecycle of the Live Activity for the tracked team.
@@ -61,11 +62,20 @@ final class LiveActivityManager: ObservableObject {
 
         state = .starting
 
+        // Resolve which team's logo to show in DI minimal.
+        // Priority: pinned home > pinned away > home fallback.
+        let pinned = UserPreferences.shared.pinnedTeams
+        let pinnedTricode: String?
+        if pinned.contains(homeTeam)      { pinnedTricode = homeTeam }
+        else if pinned.contains(awayTeam) { pinnedTricode = awayTeam }
+        else                              { pinnedTricode = nil }
+
         let attributes = FirepowerActivityAttributes(
             sport: "nhl",
             homeTeam: homeTeam,
             awayTeam: awayTeam,
-            gameID: gameID
+            gameID: gameID,
+            pinnedTricode: pinnedTricode
         )
         let initialState = FirepowerActivityAttributes.ContentState()
 
@@ -122,15 +132,72 @@ final class LiveActivityManager: ObservableObject {
         state = .idle
     }
 
+    // MARK: - Debug (DEBUG builds only)
+
+#if DEBUG
+    /// Starts a fake BOS@NYR Live Activity driven by local state updates.
+    /// No APNs channel is needed — call updateDebugState() to push new state.
+    func startDebugActivity(initialState: FirepowerActivityAttributes.ContentState) async {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            state = .denied
+            return
+        }
+
+        if let existing = currentActivity,
+           existing.activityState != .ended,
+           existing.activityState != .dismissed {
+            state = .tracking
+            return
+        }
+
+        state = .starting
+
+        let attributes = FirepowerActivityAttributes(
+            sport: "nhl",
+            homeTeam: "BOS",
+            awayTeam: "NYR",
+            gameID: "debug-0",
+            pinnedTricode: "BOS"
+        )
+        let content = ActivityContent(state: initialState, staleDate: Date().addingTimeInterval(3600))
+
+        do {
+            // .token works in the simulator and doesn't need the broadcasting
+            // entitlement. APNs pushes won't land (no server pushing to us),
+            // but Activity.update() drives state changes fine for local testing.
+            let activity = try Activity.request(
+                attributes: attributes,
+                content: content,
+                pushType: .token
+            )
+            currentActivity = activity
+            state = .tracking
+            print("Debug Live Activity started: \(activity.id)")
+        } catch {
+            state = .idle
+            print("Debug Live Activity failed to start: \(error)")
+        }
+    }
+
+    /// Drives the debug activity to a new state without APNs.
+    func updateDebugState(_ newState: FirepowerActivityAttributes.ContentState) async {
+        guard let activity = currentActivity else { return }
+        let content = ActivityContent(state: newState, staleDate: Date().addingTimeInterval(3600))
+        await activity.update(content)
+    }
+#endif
+
     // MARK: - Push token logging
 
     private func logContentStateUpdates(activity: Activity<FirepowerActivityAttributes>, teamTricode: String) async {
         for await state in activity.contentStateUpdates {
             print("LiveActivityManager: [\(teamTricode)] push received ↓")
-            print("  score:     \(state.homeScore) – \(state.awayScore)")
-            print("  xG:        \(String(format: "%.2f", state.homeXG)) – \(String(format: "%.2f", state.awayXG))")
-            print("  gameState: \(state.gameState)")
-            if let event = state.lastEvent { print("  lastEvent: \(event)") }
+            print("  score:       \(state.homeScore) – \(state.awayScore)")
+            print("  xG:          \(String(format: "%.2f", state.homeXG)) – \(String(format: "%.2f", state.awayXG))")
+            print("  gameState:   \(state.gameState)")
+            if let type_ = state.eventType   { print("  eventType:   \(type_)") }
+            if let detail = state.eventDetail, !detail.isEmpty { print("  eventDetail: \(detail)") }
+            if let team   = state.eventTeam  { print("  eventTeam:   \(team)") }
         }
     }
 

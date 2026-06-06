@@ -10,6 +10,8 @@
 		8141207B2FAB68E800BD0B70 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8141207A2FAB68E800BD0B70 /* WidgetKit.framework */; };
 		8141207D2FAB68E800BD0B70 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8141207C2FAB68E800BD0B70 /* SwiftUI.framework */; };
 		8141208C2FAB68EA00BD0B70 /* FirepowerActivityKitExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 814120782FAB68E800BD0B70 /* FirepowerActivityKitExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		81F95C652FD2FF8400A317DC /* FirepowerShared in Frameworks */ = {isa = PBXBuildFile; productRef = FF00000002AB6894BD0B7002 /* FirepowerShared */; };
+		81F95C662FD2FF8400A317DC /* FirepowerShared in Frameworks */ = {isa = PBXBuildFile; productRef = FF00000003AB6894BD0B7003 /* FirepowerShared */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -110,6 +112,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				81F95C652FD2FF8400A317DC /* FirepowerShared in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -131,6 +134,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				81F95C662FD2FF8400A317DC /* FirepowerShared in Frameworks */,
 				8141207D2FAB68E800BD0B70 /* SwiftUI.framework in Frameworks */,
 				8141207B2FAB68E800BD0B70 /* WidgetKit.framework in Frameworks */,
 			);
@@ -193,6 +197,7 @@
 			);
 			name = Firepower;
 			packageProductDependencies = (
+				FF00000002AB6894BD0B7002 /* FirepowerShared */,
 			);
 			productName = Firepower;
 			productReference = 8141204A2FAB689400BD0B70 /* Firepower.app */;
@@ -261,6 +266,7 @@
 			);
 			name = FirepowerActivityKitExtension;
 			packageProductDependencies = (
+				FF00000003AB6894BD0B7003 /* FirepowerShared */,
 			);
 			productName = FirepowerActivityKitExtension;
 			productReference = 814120782FAB68E800BD0B70 /* FirepowerActivityKitExtension.appex */;
@@ -301,6 +307,9 @@
 			);
 			mainGroup = 814120412FAB689400BD0B70;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				FF00000001AB6894BD0B7001 /* XCLocalSwiftPackageReference "FirepowerShared" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8141204B2FAB689400BD0B70 /* Products */;
 			projectDirPath = "";
@@ -698,7 +707,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.blakenelson.Firepower.FirepowerActivityKit;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -733,7 +742,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.1;
+				MARKETING_VERSION = 0.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.blakenelson.Firepower.FirepowerActivityKit;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -799,6 +808,26 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		FF00000001AB6894BD0B7001 /* XCLocalSwiftPackageReference "FirepowerShared" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = FirepowerShared;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		FF00000002AB6894BD0B7002 /* FirepowerShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FF00000001AB6894BD0B7001 /* XCLocalSwiftPackageReference "FirepowerShared" */;
+			productName = FirepowerShared;
+		};
+		FF00000003AB6894BD0B7003 /* FirepowerShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FF00000001AB6894BD0B7001 /* XCLocalSwiftPackageReference "FirepowerShared" */;
+			productName = FirepowerShared;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 814120422FAB689400BD0B70 /* Project object */;
 }

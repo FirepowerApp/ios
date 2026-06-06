@@ -24,7 +24,18 @@ struct TodayView: View {
                 if let error = store.fetchError, store.games.isEmpty {
                     errorState(error)
                 } else if store.games.isEmpty && !store.isLoading {
+                    #if DEBUG
+                    ScrollView {
+                        LazyVStack(spacing: 16, pinnedViews: [.sectionHeaders]) {
+                            debugSection
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .padding(.bottom, 32)
+                    }
+                    #else
                     emptyState
+                    #endif
                 } else {
                     gameList
                 }
@@ -65,6 +76,9 @@ struct TodayView: View {
             LazyVStack(spacing: 16, pinnedViews: [.sectionHeaders]) {
                 pinnedSection
                 allGamesSection
+                #if DEBUG
+                debugSection
+                #endif
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
@@ -117,6 +131,20 @@ struct TodayView: View {
             .padding(.vertical, 4)
             .background(Color(.systemGroupedBackground))
     }
+
+    // MARK: - Empty / error states
+
+    // MARK: - Debug section (DEBUG builds only)
+
+#if DEBUG
+    private var debugSection: some View {
+        Section {
+            DebugLiveActivityControls(activityManager: activityManager)
+        } header: {
+            sectionHeader("Debug", systemImage: "hammer.fill")
+        }
+    }
+#endif
 
     // MARK: - Empty / error states
 
