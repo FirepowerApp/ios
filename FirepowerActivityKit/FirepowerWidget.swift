@@ -117,9 +117,10 @@ private struct LockScreenView: View {
     // MARK: In-progress
 
     private var inProgressView: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
             scoreRow
-            xgRow(home: state.homeXG, away: state.awayXG)
+            XGSection(homeXG: state.homeXG, awayXG: state.awayXG,
+                      homeTricode: attributes.homeTeam, awayTricode: attributes.awayTeam)
                 .padding(.top, 2)
             eventLine(state: state, homeTeam: attributes.homeTeam)
         }
@@ -130,11 +131,11 @@ private struct LockScreenView: View {
 
     private var finalView: some View {
         let winner = state.winnerTricode(homeTeam: attributes.homeTeam, awayTeam: attributes.awayTeam)
-        return VStack(spacing: 6) {
+        return VStack(spacing: 8) {
             scoreRow
-            xgRow(home: state.homeXG, away: state.awayXG)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            XGSection(homeXG: state.homeXG, awayXG: state.awayXG,
+                      homeTricode: attributes.homeTeam, awayTricode: attributes.awayTeam)
+                .padding(.top, 2)
         }
         .padding(.vertical, 12)
         .environment(\.winnerTricode, winner)
@@ -243,6 +244,53 @@ private struct TeamBadge: View {
                 .font(.system(size: 12, weight: .heavy))
                 .foregroundStyle(textColor)
         }
+    }
+}
+
+// MARK: - xG Section (the app's signature metric)
+
+private struct XGSection: View {
+    let homeXG: Double
+    let awayXG: Double
+    let homeTricode: String
+    let awayTricode: String
+
+    var body: some View {
+        let h = NHLTeamColors.colors(for: homeTricode)
+        let a = NHLTeamColors.colors(for: awayTricode)
+        let (homeColor, awayColor) = NHLColor.badgeColors(
+            homePrimary: h?.primaryColor ?? "#888888", homeSecondary: h?.secondaryColor ?? "#FFFFFF",
+            awayPrimary: a?.primaryColor ?? "#888888", awaySecondary: a?.secondaryColor ?? "#FFFFFF"
+        )
+        let total = max(homeXG + awayXG, 0.1)
+        let homeFraction = homeXG / total
+
+        return VStack(spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(String(format: "%.1f", homeXG))
+                    .font(.system(.title3, design: .rounded, weight: .heavy).monospacedDigit())
+                Spacer()
+                Text("xG")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(String(format: "%.1f", awayXG))
+                    .font(.system(.title3, design: .rounded, weight: .heavy).monospacedDigit())
+            }
+
+            // Proportional team-colored bar — who's generating the chances.
+            GeometryReader { geo in
+                let w = geo.size.width
+                HStack(spacing: 2) {
+                    Capsule().fill(homeColor)
+                        .frame(width: max(w * homeFraction - 1, 2))
+                    Capsule().fill(awayColor)
+                        .frame(width: max(w * (1 - homeFraction) - 1, 2))
+                }
+            }
+            .frame(height: 7)
+        }
+        .padding(.horizontal, 16)
     }
 }
 
