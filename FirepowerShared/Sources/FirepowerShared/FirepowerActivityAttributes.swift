@@ -153,5 +153,45 @@ public struct FirepowerActivityAttributes: ActivityAttributes {
         )
 
         public static let previewEmpty = ContentState()
+
+        // MARK: New-design showcase states (stacked gap bars)
+
+        // Tied xG at exactly 1.00/1.00 — both bars the same length.
+        public static let previewXGTied = ContentState(
+            homeScore: 1,
+            awayScore: 1,
+            homeXG: 1.00,
+            awayXG: 1.00,
+            gameState: "14:22 left, 1st period"
+        )
+
+        // Even xG — stacked bars split 50/50; neither team is leading the chances.
+        public static let previewXGEven = ContentState(
+            homeScore: 1,
+            awayScore: 1,
+            homeXG: 1.50,
+            awayXG: 1.50,
+            gameState: "06:18 left, 2nd period"
+        )
+
+        // Modest xG edge — the 1.42–1.02 case from DESIGN.md (~70/30 split).
+        public static let previewXGLead = ContentState(
+            homeScore: 2,
+            awayScore: 1,
+            homeXG: 2.42,
+            awayXG: 1.02,
+            gameState: "11:09 left, 2nd period",
+            eventType: "goal",
+            eventDetail: ""
+        )
+
+        // xG blowout — gap > 1.0 saturates the leader's bar; trailer keeps its sliver.
+        public static let previewXGBlowout = ContentState(
+            homeScore: 3,
+            awayScore: 0,
+            homeXG: 3.40,
+            awayXG: 1.10,
+            gameState: "04:52 left, 3rd period"
+        )
     }
 }

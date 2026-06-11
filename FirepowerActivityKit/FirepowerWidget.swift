@@ -248,12 +248,11 @@ private struct XGSection: View {
             homePrimary: h?.primaryColor ?? "#888888", homeSecondary: h?.secondaryColor ?? "#FFFFFF",
             awayPrimary: a?.primaryColor ?? "#888888", awaySecondary: a?.secondaryColor ?? "#FFFFFF"
         )
-        // Bars encode the xG *gap*, not each team's raw share: at an even xG both
-        // teams own half the width, and every 1.0 of separation shifts the split by
-        // half the width toward the leader (so a 1.40–1.00 edge reads as 70 / 30).
-        // Clamped so the trailing team always keeps a visible sliver. A 0-0 game
-        // lands at 50/50 naturally, so it never implies one team is dominating.
-        let homeFraction = min(max(0.5 + (homeXG - awayXG) / 2, 0.02), 0.98)
+        // Each bar is proportional to that team's raw xG share: homeXG / total.
+        // At 3–1 xG the home bar is 75% wide, away is 25%. At 0–0 (or any tie)
+        // both bars are 50%. No saturation is possible since proportions sum to 1.
+        let combined = homeXG + awayXG
+        let homeFraction = combined < 0.1 ? 0.5 : homeXG / combined
         let awayFraction = 1 - homeFraction
 
         return VStack(spacing: 4) {
@@ -275,19 +274,11 @@ private struct XGSection: View {
             // the other retracts.
             GeometryReader { geo in
                 let w = geo.size.width
-                VStack(spacing: 3) {
-                    HStack(spacing: 0) {
-                        Capsule().fill(homeColor)
-                            .frame(width: max(w * homeFraction, 2))
-                        Spacer(minLength: 0)
-                    }
-                    .frame(height: 7)
-                    HStack(spacing: 0) {
-                        Spacer(minLength: 0)
-                        Capsule().fill(awayColor)
-                            .frame(width: max(w * awayFraction, 2))
-                    }
-                    .frame(height: 7)
+                VStack(alignment: .leading, spacing: 3) {
+                    Capsule().fill(homeColor)
+                        .frame(width: max(w * homeFraction, 2), height: 7)
+                    Capsule().fill(awayColor)
+                        .frame(width: max(w * awayFraction, 2), height: 7)
                 }
             }
             .frame(height: 17)
@@ -413,4 +404,64 @@ private func teamLogo(_ tricode: String, size: CGFloat) -> some View {
     FirepowerWidget()
 } contentStates: {
     FirepowerActivityAttributes.ContentState.preview
+}
+
+// MARK: New-design showcase previews
+
+// Both teams at exactly 1.00 xG — bars are identical length.
+#Preview("Lock — xG tied 1.00/1.00", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "BOS", awayTeam: "NYR", gameID: "2025020014"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.previewXGTied
+}
+
+// Stacked bars at an even xG: both bars are half-width (home from the left,
+// away from the right), so the gap reads as zero.
+#Preview("Lock — xG even (50/50 bars)", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "BOS", awayTeam: "NYR", gameID: "2025020010"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.previewXGEven
+}
+
+// The DESIGN.md example: a 1.42–1.02 edge → ~70/30 split, and the VGK home
+// badge shows the secondary-color tricode (gold on steel).
+#Preview("Lock — xG lead (70/30) + VGK badge", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "VGK", awayTeam: "DET", gameID: "2025020011"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.previewXGLead
+}
+
+// Gap > 1.0 saturates the leader's bar; the trailing team keeps its 2% sliver.
+#Preview("Lock — xG blowout (bar saturates)", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "NSH", awayTeam: "DAL", gameID: "2025020012"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.previewXGBlowout
+}
+
+// Both badges carry the team's secondary color as the tricode text: VGK gold on
+// steel, BUF gold on navy.
+#Preview("Lock — secondary badges (VGK + BUF gold)", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "VGK", awayTeam: "BUF", gameID: "2025020013"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.previewXGLead
+}
+
+// Dynamic Island expanded with the 2-decimal xG row.
+#Preview("DI — Expanded (2-decimal xG)", as: .dynamicIsland(.expanded), using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "VGK", awayTeam: "DET", gameID: "2025020011",
+    pinnedTricode: "VGK"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.previewXGLead
 }
