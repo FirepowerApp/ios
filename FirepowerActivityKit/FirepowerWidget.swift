@@ -248,35 +248,49 @@ private struct XGSection: View {
             homePrimary: h?.primaryColor ?? "#888888", homeSecondary: h?.secondaryColor ?? "#FFFFFF",
             awayPrimary: a?.primaryColor ?? "#888888", awaySecondary: a?.secondaryColor ?? "#FFFFFF"
         )
-        // Split 50/50 until there's meaningful xG, so a 0-0 game doesn't render
-        // a bar that implies one team is dominating.
-        let combined = homeXG + awayXG
-        let homeFraction = combined < 0.1 ? 0.5 : homeXG / combined
+        // Bars encode the xG *gap*, not each team's raw share: at an even xG both
+        // teams own half the width, and every 1.0 of separation shifts the split by
+        // half the width toward the leader (so a 1.40–1.00 edge reads as 70 / 30).
+        // Clamped so the trailing team always keeps a visible sliver. A 0-0 game
+        // lands at 50/50 naturally, so it never implies one team is dominating.
+        let homeFraction = min(max(0.5 + (homeXG - awayXG) / 2, 0.02), 0.98)
+        let awayFraction = 1 - homeFraction
 
         return VStack(spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
-                Text(String(format: "%.1f", homeXG))
+                Text(String(format: "%.2f", homeXG))
                     .font(.system(.title3, design: .rounded, weight: .heavy).monospacedDigit())
                 Spacer()
                 Text("xG")
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text(String(format: "%.1f", awayXG))
+                Text(String(format: "%.2f", awayXG))
                     .font(.system(.title3, design: .rounded, weight: .heavy).monospacedDigit())
             }
 
-            // Proportional team-colored bar — who's generating the chances.
+            // Two stacked team-colored bars — home grows from the left, away from
+            // the right — so the gap between their tips reads as the size of the
+            // xG lead, and a swing toward one team visibly lengthens its bar while
+            // the other retracts.
             GeometryReader { geo in
                 let w = geo.size.width
-                HStack(spacing: 2) {
-                    Capsule().fill(homeColor)
-                        .frame(width: max(w * homeFraction - 1, 2))
-                    Capsule().fill(awayColor)
-                        .frame(width: max(w * (1 - homeFraction) - 1, 2))
+                VStack(spacing: 3) {
+                    HStack(spacing: 0) {
+                        Capsule().fill(homeColor)
+                            .frame(width: max(w * homeFraction, 2))
+                        Spacer(minLength: 0)
+                    }
+                    .frame(height: 7)
+                    HStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        Capsule().fill(awayColor)
+                            .frame(width: max(w * awayFraction, 2))
+                    }
+                    .frame(height: 7)
                 }
             }
-            .frame(height: 7)
+            .frame(height: 17)
         }
         .padding(.horizontal, 16)
     }
@@ -302,9 +316,9 @@ private func teamSide(
 @ViewBuilder
 private func xgRow(home: Double, away: Double) -> some View {
     HStack {
-        Text("xG: \(String(format: "%.1f", home))")
+        Text("xG: \(String(format: "%.2f", home))")
         Spacer()
-        Text("xG: \(String(format: "%.1f", away))")
+        Text("xG: \(String(format: "%.2f", away))")
     }
     .padding(.horizontal, 16)
     .font(.caption.monospacedDigit())

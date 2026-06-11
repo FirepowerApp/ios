@@ -133,10 +133,13 @@ struct CollisionTests {
 @Suite("NHLColor.badgeTextColor")
 struct BadgeTextColorTests {
 
-    @Test("dark fill → white text") func darkFill() {
-        let fill = Color(hex: "#0038A8") // NYR blue
-        let text = NHLColor.badgeTextColor(fill: fill, secondary: Color(hex: "#CE1126"))
-        #expect(UIColor(text) == UIColor(.white))
+    @Test("legible secondary on dark fill → secondary text (VGK gold on steel)") func vgkSecondaryOnDark() {
+        // VGK steel-grey #333F48 fill, gold #B4975A secondary — gold clears the
+        // contrast floor, so the tricode picks up the team's second color.
+        let fill = Color(hex: "#333F48")
+        let secondary = Color(hex: "#B4975A")
+        let text = NHLColor.badgeTextColor(fill: fill, secondary: secondary)
+        #expect(UIColor(text) == UIColor(secondary))
     }
 
     @Test("light fill → secondary text") func lightFill() {
@@ -144,6 +147,23 @@ struct BadgeTextColorTests {
         let secondary = Color(hex: "#000000")
         let text = NHLColor.badgeTextColor(fill: fill, secondary: secondary)
         #expect(UIColor(text) == UIColor(secondary))
+    }
+
+    @Test("illegible secondary on dark fill → white fallback (NYR red on blue)") func nyrIllegibleSecondary() {
+        // NYR royal blue #0038A8 fill, red #CE1126 secondary — red doesn't clear
+        // the contrast floor on blue, so it falls back to the more legible white.
+        let fill = Color(hex: "#0038A8")
+        let text = NHLColor.badgeTextColor(fill: fill, secondary: Color(hex: "#CE1126"))
+        #expect(UIColor(text) == UIColor(.white))
+    }
+
+    @Test("secondary equals fill (post dark-primary guard) → legible b/w fallback") func secondaryEqualsFill() {
+        // After the dark-primary guard, LAK's fill IS its silver secondary #A2AAAD.
+        // Silver-on-silver is invisible, so the text falls back to black (higher
+        // contrast on a light fill than white).
+        let fill = Color(hex: "#A2AAAD")
+        let text = NHLColor.badgeTextColor(fill: fill, secondary: Color(hex: "#A2AAAD"))
+        #expect(UIColor(text) == UIColor(.black))
     }
 }
 

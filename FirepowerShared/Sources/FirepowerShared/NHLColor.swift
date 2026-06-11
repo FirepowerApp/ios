@@ -83,10 +83,29 @@ public enum NHLColor {
         return (homeResolved, awayResolved)
     }
 
-    /// Pick the foreground text color for text drawn on `fill`.
-    /// Returns white for dark fills, `secondary` for light fills.
+    // WCAG AA contrast floor for large/bold text. The tricode is 12pt heavy, which
+    // qualifies as large text, so 3:1 is the legibility bar a team's secondary color
+    // must clear before it's used as the badge text in place of plain white/black.
+    static let badgeTextContrastFloor: Double = 3.0
+
+    /// Pick the foreground text color for the tricode drawn on `fill`.
+    ///
+    /// Prefers the team's `secondary` color so both team colors appear on the badge
+    /// (e.g. VGK steel-grey fill with a gold tricode). Falls back to white or black —
+    /// whichever is more legible — when the secondary doesn't clear the contrast
+    /// floor: e.g. the secondary equals the fill after the dark-primary guard, or
+    /// two dark brand colors collide (NYR royal blue fill + red secondary).
     public static func badgeTextColor(fill: Color, secondary: Color) -> Color {
-        fill.relativeLuminance < 0.5 ? .white : secondary
+        if contrastRatio(secondary, fill) >= badgeTextContrastFloor {
+            return secondary
+        }
+        return contrastRatio(.white, fill) >= contrastRatio(.black, fill) ? .white : .black
+    }
+
+    // WCAG relative-luminance contrast ratio (1–21).
+    static func contrastRatio(_ a: Color, _ b: Color) -> Double {
+        let la = a.relativeLuminance, lb = b.relativeLuminance
+        return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
     }
 
     // MARK: - Internal helpers
