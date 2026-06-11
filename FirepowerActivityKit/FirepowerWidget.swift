@@ -248,35 +248,40 @@ private struct XGSection: View {
             homePrimary: h?.primaryColor ?? "#888888", homeSecondary: h?.secondaryColor ?? "#FFFFFF",
             awayPrimary: a?.primaryColor ?? "#888888", awaySecondary: a?.secondaryColor ?? "#FFFFFF"
         )
-        // Split 50/50 until there's meaningful xG, so a 0-0 game doesn't render
-        // a bar that implies one team is dominating.
+        // Each bar is proportional to that team's raw xG share: homeXG / total.
+        // At 3–1 xG the home bar is 75% wide, away is 25%. At 0–0 (or any tie)
+        // both bars are 50%. No saturation is possible since proportions sum to 1.
         let combined = homeXG + awayXG
         let homeFraction = combined < 0.1 ? 0.5 : homeXG / combined
+        let awayFraction = 1 - homeFraction
 
         return VStack(spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
-                Text(String(format: "%.1f", homeXG))
+                Text(String(format: "%.2f", homeXG))
                     .font(.system(.title3, design: .rounded, weight: .heavy).monospacedDigit())
                 Spacer()
                 Text("xG")
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text(String(format: "%.1f", awayXG))
+                Text(String(format: "%.2f", awayXG))
                     .font(.system(.title3, design: .rounded, weight: .heavy).monospacedDigit())
             }
 
-            // Proportional team-colored bar — who's generating the chances.
+            // Two stacked team-colored bars — home grows from the left, away from
+            // the right — so the gap between their tips reads as the size of the
+            // xG lead, and a swing toward one team visibly lengthens its bar while
+            // the other retracts.
             GeometryReader { geo in
                 let w = geo.size.width
-                HStack(spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     Capsule().fill(homeColor)
-                        .frame(width: max(w * homeFraction - 1, 2))
+                        .frame(width: max(w * homeFraction, 2), height: 7)
                     Capsule().fill(awayColor)
-                        .frame(width: max(w * (1 - homeFraction) - 1, 2))
+                        .frame(width: max(w * awayFraction, 2), height: 7)
                 }
             }
-            .frame(height: 7)
+            .frame(height: 17)
         }
         .padding(.horizontal, 16)
     }
@@ -302,9 +307,9 @@ private func teamSide(
 @ViewBuilder
 private func xgRow(home: Double, away: Double) -> some View {
     HStack {
-        Text("xG: \(String(format: "%.1f", home))")
+        Text("xG: \(String(format: "%.2f", home))")
         Spacer()
-        Text("xG: \(String(format: "%.1f", away))")
+        Text("xG: \(String(format: "%.2f", away))")
     }
     .padding(.horizontal, 16)
     .font(.caption.monospacedDigit())
@@ -399,4 +404,64 @@ private func teamLogo(_ tricode: String, size: CGFloat) -> some View {
     FirepowerWidget()
 } contentStates: {
     FirepowerActivityAttributes.ContentState.preview
+}
+
+// MARK: New-design showcase previews
+
+// Both teams at exactly 1.00 xG — bars are identical length.
+#Preview("Lock — xG tied 1.00/1.00", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "BOS", awayTeam: "NYR", gameID: "2025020014"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.previewXGTied
+}
+
+// Stacked bars at an even xG: both bars are half-width (home from the left,
+// away from the right), so the gap reads as zero.
+#Preview("Lock — xG even (50/50 bars)", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "BOS", awayTeam: "NYR", gameID: "2025020010"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.previewXGEven
+}
+
+// The DESIGN.md example: a 1.42–1.02 edge → ~70/30 split, and the VGK home
+// badge shows the secondary-color tricode (gold on steel).
+#Preview("Lock — xG lead (70/30) + VGK badge", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "VGK", awayTeam: "DET", gameID: "2025020011"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.previewXGLead
+}
+
+// Gap > 1.0 saturates the leader's bar; the trailing team keeps its 2% sliver.
+#Preview("Lock — xG blowout (bar saturates)", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "NSH", awayTeam: "DAL", gameID: "2025020012"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.previewXGBlowout
+}
+
+// Both badges carry the team's secondary color as the tricode text: VGK gold on
+// steel, BUF gold on navy.
+#Preview("Lock — secondary badges (VGK + BUF gold)", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "VGK", awayTeam: "BUF", gameID: "2025020013"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.previewXGLead
+}
+
+// Dynamic Island expanded with the 2-decimal xG row.
+#Preview("DI — Expanded (2-decimal xG)", as: .dynamicIsland(.expanded), using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "VGK", awayTeam: "DET", gameID: "2025020011",
+    pinnedTricode: "VGK"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.previewXGLead
 }

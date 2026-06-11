@@ -133,8 +133,8 @@ struct DebugLiveActivityControls: View {
 
     private func currentContentState(eventType: String?, eventDetail: String?, eventTeam: String?) -> FirepowerActivityAttributes.ContentState {
         .init(homeScore: homeScore, awayScore: awayScore,
-              homeXG: round(homeXG * 10) / 10,
-              awayXG: round(awayXG * 10) / 10,
+              homeXG: round(homeXG * 100) / 100,
+              awayXG: round(awayXG * 100) / 100,
               gameState: clockString,
               eventType: eventType, eventDetail: eventDetail, eventTeam: eventTeam)
     }

@@ -21,7 +21,7 @@ All rules are implemented in `FirepowerShared/Sources/FirepowerShared/NHLColor.s
 1. **Primary first**: a team's color expression starts with `primaryColor`.
 2. **Dark-primary contrast guard** (applied first): if a team's `primaryColor` has WCAG relative luminance < `0.015` (e.g. LAK `#111111`, SEA `#001628`, EDM `#041E42`), swap to `secondaryColor`. The threshold is deliberately low so deep-but-distinct colors like NYR royal blue (`#0038A8`, lum ~0.058) keep their primary.
 3. **Collision rule** (applied second): if the two resolved colors are perceptually similar (normalized sRGB distance < `0.15` — practical examples: BOS/PIT gold, NYR/NYI blue), the **away** team swaps to its `secondaryColor`.
-4. **Foreground on team fill**: text/glyph color on a team-colored fill = white if fill luminance < 0.5, else the team's `secondaryColor` (`NHLColor.badgeTextColor`). Always verify resulting contrast >= 4.5:1.
+4. **Foreground on team fill**: text/glyph color on a team-colored fill prefers the team's `secondaryColor`, so both team colors appear on the badge (e.g. VGK steel-grey fill with a gold tricode). The secondary is used only when it clears a 3:1 contrast ratio against the fill (WCAG AA for large/bold text — the tricode is 12pt heavy); otherwise it falls back to white or black, whichever is more legible (`NHLColor.badgeTextColor`). This fallback covers the cases where the secondary equals the fill after the dark-primary guard (e.g. LAK silver) or two dark brand colors collide (NYR royal-blue fill + red secondary → white).
 
 ## Typography
 
@@ -52,7 +52,11 @@ System fonts only. SF Pro by default; rounded design for scores and numeric chro
 
 ## Signature element: xG bar
 
-xG is the metric that sets this app apart from the default Apple Sports widget, so it reads as a highlight on the lock screen, not a footnote. Below the bold xG values sits a proportional team-colored capsule bar (home color left, away color right) split by the xG ratio — a glance shows who is generating the chances. At 0-0 (no meaningful xG yet) the bar splits 50/50 so it never implies one team is dominating. Implemented in `XGSection` (`FirepowerWidget.swift`).
+xG is the metric that sets this app apart from the default Apple Sports widget, so it reads as a highlight on the lock screen, not a footnote. The two values are shown to **two decimal places** (`%.2f`) so small, in-game xG swings are legible.
+
+Below the bold values sit **two stacked team-colored capsule bars** — the home bar grows from the left edge, the away bar from the right edge — that encode the xG **gap**, not each team's raw share. At an even xG both bars own half the width; every 1.0 of separation shifts the split by half the width toward the leader (so a 1.40–1.00 edge reads as 70 / 30). The trailing team always keeps a small visible sliver (clamped to 2%), and a 0-0 game lands at 50/50 so it never implies one team is dominating. A swing toward one team visibly lengthens its bar while the other retracts. Implemented in `XGSection` (`FirepowerWidget.swift`).
+
+Sensitivity note: because the split is half-width per 1.0 of xG, a gap of ≥ 1.0 saturates the leader's bar to full width. That keeps mid-game swings dramatic and readable; revisit the scale if real games routinely peg the bar.
 
 ## Iconography
 
