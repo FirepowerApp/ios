@@ -74,7 +74,8 @@ The iOS `ContentState` (in `FirepowerShared`) and the backend `contentState` str
 
 ## Key files
 
-- `Firepower/` — main app target (TodayView, LiveActivityManager, FirepowerApp, NHLScheduleClient)
+- `Firepower/` — main app target (TodayView, LiveActivityManager, FirepowerApp, NHLScheduleClient, OffseasonReplay)
+- `Firepower/OffseasonReplay.swift` — offseason-only date remapping: in the June 22–Sept 30 window, maps today onto the real 2025-26 date and reshapes fetched games onto today (FUT, scores cleared, DST-aware). Anchors mirror the emulator's `cmd/buildschedule` flags; a pinned test in `FirepowerTests` flags drift.
 - `FirepowerShared/` — local Swift package shared by app and widget (FirepowerActivityAttributes, NHLColor, NHLTeamColors)
 - `FirepowerActivityKit/` — widget extension (FirepowerWidget, FirepowerActivityKitBundle)
 - `FirepowerShared/Sources/FirepowerShared/FirepowerActivityAttributes.swift` — single source of truth for wire format; both targets import `FirepowerShared`

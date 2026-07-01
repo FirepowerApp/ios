@@ -32,6 +32,8 @@ The app is a **pure APNs channel subscriber**. It never calls the Firepower back
 - Live score/xG/event updates are delivered by APNs broadcast push to the team's channel. No running device or per-device registration is required; the backend pushes to the channel and every subscriber's Live Activity updates.
 - When you start a game, `LiveActivityManager` requests the activity and subscribes to the team's channel.
 
+**Offseason replay.** During the NHL offseason (June 22 – September 30) the real schedule is empty, so there is nothing to track. In that window `OffseasonReplay` maps today onto the corresponding real 2025-26 date and slides those games onto the daily list — marked upcoming with scores cleared and start times shifted (DST-aware) — so you can still start Live Activities against replayed games. Outside the window it is a no-op and the in-season path is unchanged.
+
 The wire format between backend and app is defined once in `FirepowerShared` and decoded by the widget. It is backward-compatible: the app degrades gracefully on an older backend.
 
 ## Project structure
