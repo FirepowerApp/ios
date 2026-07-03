@@ -20,7 +20,7 @@ struct DebugLiveActivityControls: View {
     @State private var minutes  = 14
     @State private var seconds  = 32
 
-    private var isTracking: Bool { activityManager.state == .tracking }
+    private var isTracking: Bool { activityManager.isTracking(gameID: LiveActivityManager.debugGameID) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -40,7 +40,7 @@ struct DebugLiveActivityControls: View {
                 Button(isTracking ? "Stop" : "Start Debug Activity") {
                     Task {
                         if isTracking {
-                            await activityManager.stopActivity()
+                            await activityManager.stopActivity(gameID: LiveActivityManager.debugGameID)
                         } else {
                             resetState()
                             await activityManager.startDebugActivity(

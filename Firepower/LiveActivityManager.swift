@@ -3,22 +3,27 @@ import Combine
 import FirepowerShared
 import Foundation
 
-// LiveActivityManager controls the lifecycle of the Live Activity for the tracked team.
-//
-// State machine:
-//
-//   idle ──► starting ──► tracking ──► ended
-//     ▲          │            │
-//     └──────────┴────────────┘ (via stop() or game-end push)
-//
-// v1: one team, one activity. Multi-team is v2.
+// LiveActivityManager controls the lifecycle of Live Activities. Users can track
+// multiple games at once, so activities are keyed by game ID; each has its own
+// APNs channel subscription and lives independently until stopped or ended by a
+// game-end push.
 
 @MainActor
 final class LiveActivityManager: ObservableObject {
 
+    /// Active Live Activities keyed by NHL game ID. One entry per tracked game.
+    @Published private(set) var activities: [String: Activity<FirepowerActivityAttributes>] = [:]
     @Published private(set) var state: ActivityState = .idle
-    @Published private(set) var currentActivity: Activity<FirepowerActivityAttributes>?
     @Published private(set) var pushToken: String?
+
+    /// Game ID used for the local DEBUG activity.
+    static let debugGameID = "debug-0"
+
+    /// Whether the given game currently has a live (non-ended) activity.
+    func isTracking(gameID: String) -> Bool {
+        guard let activity = activities[gameID] else { return false }
+        return activity.activityState != .ended && activity.activityState != .dismissed
+    }
 
     enum ActivityState: Equatable {
         case idle
@@ -52,15 +57,9 @@ final class LiveActivityManager: ObservableObject {
             return
         }
 
-        // Don't start a duplicate for the same game
-        if let existing = currentActivity,
-           existing.activityState != .ended,
-           existing.activityState != .dismissed {
-            state = .tracking
-            return
-        }
-
-        state = .starting
+        // Don't start a duplicate activity for the same game; other games are
+        // unaffected — multiple activities can run at once.
+        if isTracking(gameID: gameID) { return }
 
         // Resolve which team's logo to show in DI minimal.
         // Priority: pinned home > pinned away > home fallback.
@@ -102,13 +101,19 @@ final class LiveActivityManager: ObservableObject {
                 content: content,
                 pushType: .channel(team.channelId)
             )
-            print("LiveActivityManager: activity started with id=\(activity.id) activityState=\(activity.activityState)")
-            currentActivity = activity
+            print("LiveActivityManager: activity started for game \(gameID) id=\(activity.id) activityState=\(activity.activityState)")
+            activities[gameID] = activity
             state = .tracking
 
+            // Drop the activity from the dict when it ends (stop or game-end push)
+            // so its row flips back to "Track".
             Task {
                 for await s in activity.activityStateUpdates {
-                    print("LiveActivityManager: activityState → \(s)")
+                    print("LiveActivityManager: [game \(gameID)] activityState → \(s)")
+                    if s == .ended || s == .dismissed {
+                        activities[gameID] = nil
+                        if activities.isEmpty { state = .idle }
+                    }
                 }
             }
 
@@ -124,12 +129,14 @@ final class LiveActivityManager: ObservableObject {
 
     // MARK: - Stop
 
-    func stopActivity() async {
-        guard let activity = currentActivity else { return }
+    func stopActivity(gameID: String) async {
+        guard let activity = activities[gameID] else { return }
         await activity.end(nil, dismissalPolicy: .immediate)
-        currentActivity = nil
-        pushToken = nil
-        state = .idle
+        activities[gameID] = nil
+        if activities.isEmpty {
+            pushToken = nil
+            state = .idle
+        }
     }
 
     // MARK: - Debug (DEBUG builds only)
@@ -143,12 +150,7 @@ final class LiveActivityManager: ObservableObject {
             return
         }
 
-        if let existing = currentActivity,
-           existing.activityState != .ended,
-           existing.activityState != .dismissed {
-            state = .tracking
-            return
-        }
+        if isTracking(gameID: Self.debugGameID) { return }
 
         state = .starting
 
@@ -156,7 +158,7 @@ final class LiveActivityManager: ObservableObject {
             sport: "nhl",
             homeTeam: "BOS",
             awayTeam: "NYR",
-            gameID: "debug-0",
+            gameID: Self.debugGameID,
             pinnedTricode: "BOS"
         )
         let content = ActivityContent(state: initialState, staleDate: Date().addingTimeInterval(3600))
@@ -170,7 +172,7 @@ final class LiveActivityManager: ObservableObject {
                 content: content,
                 pushType: .token
             )
-            currentActivity = activity
+            activities[Self.debugGameID] = activity
             state = .tracking
             print("Debug Live Activity started: \(activity.id)")
         } catch {
@@ -181,7 +183,7 @@ final class LiveActivityManager: ObservableObject {
 
     /// Drives the debug activity to a new state without APNs.
     func updateDebugState(_ newState: FirepowerActivityAttributes.ContentState) async {
-        guard let activity = currentActivity else { return }
+        guard let activity = activities[Self.debugGameID] else { return }
         let content = ActivityContent(state: newState, staleDate: Date().addingTimeInterval(3600))
         await activity.update(content)
     }

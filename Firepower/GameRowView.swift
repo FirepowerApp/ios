@@ -14,8 +14,7 @@ struct GameRowView: View {
     private var awayTeam: NHLTeam? { NHLTeam.team(for: game.awayTeam.abbrev) }
 
     private var isTracking: Bool {
-        guard case .tracking = activityManager.state else { return false }
-        return activityManager.currentActivity?.attributes.gameID == String(game.id)
+        activityManager.isTracking(gameID: String(game.id))
     }
 
     var body: some View {
@@ -94,7 +93,7 @@ struct GameRowView: View {
     private var trackButton: some View {
         if isTracking {
             Button {
-                Task { await activityManager.stopActivity() }
+                Task { await activityManager.stopActivity(gameID: String(game.id)) }
             } label: {
                 Label("Tracking", systemImage: "dot.radiowaves.left.and.right")
                     .font(.caption.weight(.medium))
