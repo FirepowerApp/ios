@@ -16,6 +16,10 @@ final class LiveActivityManager: ObservableObject {
     @Published private(set) var state: ActivityState = .idle
     @Published private(set) var pushToken: String?
 
+    /// User-facing message when a start fails (e.g. the OS activity limit).
+    /// Settable so the presenting view can clear it after showing an alert.
+    @Published var startError: String?
+
     /// Game ID used for the local DEBUG activity.
     static let debugGameID = "debug-0"
 
@@ -60,6 +64,8 @@ final class LiveActivityManager: ObservableObject {
         // Don't start a duplicate activity for the same game; other games are
         // unaffected — multiple activities can run at once.
         if isTracking(gameID: gameID) { return }
+
+        startError = nil  // clear any prior failure before retrying
 
         // Resolve which team's logo to show in DI minimal.
         // Priority: pinned home > pinned away > home fallback.
@@ -122,9 +128,27 @@ final class LiveActivityManager: ObservableObject {
             Task { await logPushTokenUpdates(activity: activity, teamTricode: team.tricode) }
             Task { await logContentStateUpdates(activity: activity, teamTricode: team.tricode) }
         } catch {
-            state = .idle
+            state = activities.isEmpty ? .idle : .tracking
+            startError = Self.startFailureMessage(for: error)
             print("LiveActivityManager: failed to start activity: \(error)")
         }
+    }
+
+    /// Maps a failed `Activity.request` into a message worth showing the user.
+    private static func startFailureMessage(for error: Error) -> String {
+        if let authError = error as? ActivityAuthorizationError {
+            switch authError {
+            case .targetMaximumExceeded, .globalMaximumExceeded:
+                return "You're tracking the maximum number of games at once. Stop one to track another."
+            case .denied:
+                return "Live Activities are turned off for Firepower. Turn them on in Settings."
+            case .unsupported, .unentitled:
+                return "Live Activities aren't available on this device."
+            default:
+                break
+            }
+        }
+        return "Couldn't start tracking this game. Please try again."
     }
 
     // MARK: - Stop

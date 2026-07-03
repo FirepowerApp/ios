@@ -58,6 +58,18 @@ struct TodayView: View {
             .sheet(isPresented: $showingSettings) {
                 SettingsView()
             }
+            .alert(
+                "Can't Track Game",
+                isPresented: Binding(
+                    get: { activityManager.startError != nil },
+                    set: { if !$0 { activityManager.startError = nil } }
+                ),
+                presenting: activityManager.startError
+            ) { _ in
+                Button("OK", role: .cancel) {}
+            } message: { message in
+                Text(message)
+            }
         }
         .task {
             await store.refreshIfStale()
