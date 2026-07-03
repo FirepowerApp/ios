@@ -110,8 +110,11 @@ struct GameRowView: View {
         } else {
             // Trackable if either team has a channel — the backend broadcasts each
             // game on both teams' channels, so home vs away doesn't matter here.
-            let canStart = homeTeam?.channelId.isEmpty == false
-                        || awayTeam?.channelId.isEmpty == false
+            let hasChannel = homeTeam?.channelId.isEmpty == false
+                          || awayTeam?.channelId.isEmpty == false
+            // Disable Track once iOS is at its Live Activity cap; stopping a game
+            // frees a slot and re-enables it.
+            let canStart = hasChannel && !activityManager.atActivityLimit
             Button {
                 guard canStart else { return }
                 Task {
@@ -124,7 +127,7 @@ struct GameRowView: View {
                     )
                 }
             } label: {
-                Text(canStart ? "Track" : "Soon")
+                Text(hasChannel ? "Track" : "Soon")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(canStart ? .white : .secondary)
                     .padding(.horizontal, 10)

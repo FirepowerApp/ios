@@ -16,9 +16,11 @@ final class LiveActivityManager: ObservableObject {
     @Published private(set) var state: ActivityState = .idle
     @Published private(set) var pushToken: String?
 
-    /// User-facing message when a start fails (e.g. the OS activity limit).
-    /// Settable so the presenting view can clear it after showing an alert.
-    @Published var startError: String?
+    /// True once iOS rejects a start for exceeding its Live Activity cap. The UI
+    /// disables the Track button while set. Cleared when a slot frees up (an
+    /// activity is stopped or ends), so the cap is learned at runtime rather than
+    /// hardcoded — iOS doesn't expose the exact number.
+    @Published private(set) var atActivityLimit = false
 
     /// Game ID used for the local DEBUG activity.
     static let debugGameID = "debug-0"
@@ -65,8 +67,6 @@ final class LiveActivityManager: ObservableObject {
         // unaffected — multiple activities can run at once.
         if isTracking(gameID: gameID) { return }
 
-        startError = nil  // clear any prior failure before retrying
-
         // Resolve which team's logo to show in DI minimal.
         // Priority: pinned home > pinned away > home fallback.
         let pinned = UserPreferences.shared.pinnedTeams
@@ -110,6 +110,7 @@ final class LiveActivityManager: ObservableObject {
             print("LiveActivityManager: activity started for game \(gameID) id=\(activity.id) activityState=\(activity.activityState)")
             activities[gameID] = activity
             state = .tracking
+            atActivityLimit = false  // a start succeeded, so we're under the cap
 
             // Drop the activity from the dict when it ends (stop or game-end push)
             // so its row flips back to "Track".
@@ -118,6 +119,7 @@ final class LiveActivityManager: ObservableObject {
                     print("LiveActivityManager: [game \(gameID)] activityState → \(s)")
                     if s == .ended || s == .dismissed {
                         activities[gameID] = nil
+                        atActivityLimit = false  // a slot freed up
                         if activities.isEmpty { state = .idle }
                     }
                 }
@@ -129,26 +131,18 @@ final class LiveActivityManager: ObservableObject {
             Task { await logContentStateUpdates(activity: activity, teamTricode: team.tricode) }
         } catch {
             state = activities.isEmpty ? .idle : .tracking
-            startError = Self.startFailureMessage(for: error)
+            // The OS cap is the only failure we can recover from by freeing a
+            // slot; flag it so the UI disables further Track buttons.
+            if let authError = error as? ActivityAuthorizationError {
+                switch authError {
+                case .targetMaximumExceeded, .globalMaximumExceeded:
+                    atActivityLimit = true
+                default:
+                    break
+                }
+            }
             print("LiveActivityManager: failed to start activity: \(error)")
         }
-    }
-
-    /// Maps a failed `Activity.request` into a message worth showing the user.
-    private static func startFailureMessage(for error: Error) -> String {
-        if let authError = error as? ActivityAuthorizationError {
-            switch authError {
-            case .targetMaximumExceeded, .globalMaximumExceeded:
-                return "You're tracking the maximum number of games at once. Stop one to track another."
-            case .denied:
-                return "Live Activities are turned off for Firepower. Turn them on in Settings."
-            case .unsupported, .unentitled:
-                return "Live Activities aren't available on this device."
-            default:
-                break
-            }
-        }
-        return "Couldn't start tracking this game. Please try again."
     }
 
     // MARK: - Stop
@@ -157,6 +151,7 @@ final class LiveActivityManager: ObservableObject {
         guard let activity = activities[gameID] else { return }
         await activity.end(nil, dismissalPolicy: .immediate)
         activities[gameID] = nil
+        atActivityLimit = false  // stopping frees a slot, so re-enable Track
         if activities.isEmpty {
             pushToken = nil
             state = .idle
