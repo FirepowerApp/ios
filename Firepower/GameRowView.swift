@@ -112,9 +112,9 @@ struct GameRowView: View {
             // game on both teams' channels, so home vs away doesn't matter here.
             let hasChannel = homeTeam?.channelId.isEmpty == false
                           || awayTeam?.channelId.isEmpty == false
-            // Disable Track once iOS is at its Live Activity cap; stopping a game
+            // Disable Track once we're at the Live Activity cap; stopping a game
             // frees a slot and re-enables it.
-            let canStart = hasChannel && !activityManager.atActivityLimit
+            let canStart = hasChannel && !activityManager.isAtCapacity
             Button {
                 guard canStart else { return }
                 Task {

@@ -25,6 +25,16 @@ final class LiveActivityManager: ObservableObject {
     /// Game ID used for the local DEBUG activity.
     static let debugGameID = "debug-0"
 
+    /// Max Live Activities to run at once. iOS enforces its own cap (observed at
+    /// 5); we stop at the same number so Track disables before a start would fail.
+    static let maxConcurrentActivities = 5
+
+    /// At the concurrent-activity cap — either our hardcoded max or an OS
+    /// rejection (which covers iOS lowering the limit under memory pressure).
+    var isAtCapacity: Bool {
+        activities.count >= Self.maxConcurrentActivities || atActivityLimit
+    }
+
     /// Whether the given game currently has a live (non-ended) activity.
     func isTracking(gameID: String) -> Bool {
         guard let activity = activities[gameID] else { return false }
@@ -66,6 +76,10 @@ final class LiveActivityManager: ObservableObject {
         // Don't start a duplicate activity for the same game; other games are
         // unaffected — multiple activities can run at once.
         if isTracking(gameID: gameID) { return }
+
+        // Respect the concurrent cap. The UI disables Track here, but guard
+        // deep-link / notification starts too.
+        if activities.count >= Self.maxConcurrentActivities { return }
 
         // Resolve which team's logo to show in DI minimal.
         // Priority: pinned home > pinned away > home fallback.
