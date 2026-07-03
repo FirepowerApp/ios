@@ -109,7 +109,10 @@ struct GameRowView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } else {
-            let canStart = !(homeTeam?.channelId.isEmpty ?? true)
+            // Trackable if either team has a channel — the backend broadcasts each
+            // game on both teams' channels, so home vs away doesn't matter here.
+            let canStart = homeTeam?.channelId.isEmpty == false
+                        || awayTeam?.channelId.isEmpty == false
             Button {
                 guard canStart else { return }
                 Task {

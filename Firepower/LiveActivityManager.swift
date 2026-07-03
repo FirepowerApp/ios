@@ -85,18 +85,18 @@ final class LiveActivityManager: ObservableObject {
         )
 
         do {
-            guard let team = NHLTeam.team(for: homeTeam) else {
-                print("LiveActivityManager: unknown team \(homeTeam)")
+            // Subscribe to whichever team's channel is configured. The backend
+            // broadcasts each game on both teams' channels, so home or away works;
+            // prefer home when both are present.
+            guard let team = [homeTeam, awayTeam]
+                .compactMap({ NHLTeam.team(for: $0) })
+                .first(where: { !$0.channelId.isEmpty })
+            else {
+                print("LiveActivityManager: no channel ID for \(awayTeam)@\(homeTeam)")
                 state = .idle
                 return
             }
 
-            guard !team.channelId.isEmpty else {
-                print("LiveActivityManager: missing channel ID for \(homeTeam)")
-                state = .idle
-                return
-            }
-            
             let activity = try Activity.request(
                 attributes: attributes,
                 content: content,
@@ -114,8 +114,8 @@ final class LiveActivityManager: ObservableObject {
 
             // Log push token updates for debugging. The backend delivers via the
             // broadcast channel (nhl-team-{tricode}); no per-device registration needed.
-            Task { await logPushTokenUpdates(activity: activity, teamTricode: homeTeam) }
-            Task { await logContentStateUpdates(activity: activity, teamTricode: homeTeam) }
+            Task { await logPushTokenUpdates(activity: activity, teamTricode: team.tricode) }
+            Task { await logContentStateUpdates(activity: activity, teamTricode: team.tricode) }
         } catch {
             state = .idle
             print("LiveActivityManager: failed to start activity: \(error)")
