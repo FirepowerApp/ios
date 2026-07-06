@@ -16,7 +16,9 @@ Planning materials live in a local working directory outside this repo (referred
 
 All game data reaches the app exclusively via APNs broadcast push to the team's channel.
 Channel IDs are created in App Store Connect → App ID → Push Notifications → Broadcast
-Notifications, and hardcoded in `Firepower/NHLTeams.swift` under `channelTokenBase64`.
+Notifications, and hardcoded in `Firepower/NHLTeams.swift` in the `debugChannelIds`
+(development) and `prodChannelIds` (release/TestFlight/App Store) maps, resolved by
+build config via `channelId(for:)`.
 
 Do not add URLSession calls, REST clients, or any other direct backend communication
 to the app target. If schedule/game data is needed in the UI, it either:
