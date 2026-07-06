@@ -44,6 +44,7 @@ private extension NHLTeam {
         "MTL": "GOmex1ilEfEAAOYo81Crcg==",
         "VGK": "Y8GZXlikEfEAAE4quYgbSQ==",
         "COL": "S7cBYlilEfEAADY6cc28lw==",
+        "CHI": "VeHR2HNPEfEAAIIz9BtJIg==",
     ]
 
     static func channelId(for tricode: String) -> String {

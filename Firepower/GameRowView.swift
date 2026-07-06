@@ -14,8 +14,7 @@ struct GameRowView: View {
     private var awayTeam: NHLTeam? { NHLTeam.team(for: game.awayTeam.abbrev) }
 
     private var isTracking: Bool {
-        guard case .tracking = activityManager.state else { return false }
-        return activityManager.currentActivity?.attributes.gameID == String(game.id)
+        activityManager.isTracking(gameID: String(game.id))
     }
 
     var body: some View {
@@ -94,7 +93,7 @@ struct GameRowView: View {
     private var trackButton: some View {
         if isTracking {
             Button {
-                Task { await activityManager.stopActivity() }
+                Task { await activityManager.stopActivity(gameID: String(game.id)) }
             } label: {
                 Label("Tracking", systemImage: "dot.radiowaves.left.and.right")
                     .font(.caption.weight(.medium))
@@ -109,7 +108,13 @@ struct GameRowView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         } else {
-            let canStart = !(homeTeam?.channelId.isEmpty ?? true)
+            // Trackable if either team has a channel — the backend broadcasts each
+            // game on both teams' channels, so home vs away doesn't matter here.
+            let hasChannel = homeTeam?.channelId.isEmpty == false
+                          || awayTeam?.channelId.isEmpty == false
+            // Disable Track once we're at the Live Activity cap; stopping a game
+            // frees a slot and re-enables it.
+            let canStart = hasChannel && !activityManager.isAtCapacity
             Button {
                 guard canStart else { return }
                 Task {
@@ -122,7 +127,7 @@ struct GameRowView: View {
                     )
                 }
             } label: {
-                Text(canStart ? "Track" : "Soon")
+                Text(hasChannel ? "Track" : "Soon")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(canStart ? .white : .secondary)
                     .padding(.horizontal, 10)
