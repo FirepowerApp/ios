@@ -25,7 +25,7 @@ import WidgetKit
 struct FirepowerWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: FirepowerActivityAttributes.self) { context in
-            LockScreenView(attributes: context.attributes, state: context.state)
+            LockScreenView(attributes: context.attributes, state: context.state, isStale: context.isStale)
                 .activityBackgroundTint(Color.black.opacity(0.85))
                 .activitySystemActionForegroundColor(.white)
                 .dynamicTypeSize(...DynamicTypeSize.xLarge)
@@ -52,7 +52,7 @@ struct FirepowerWidget: Widget {
                     )
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Text(context.state.isPregame ? "Pregame" : context.state.isEnded ? "Final" : context.state.gameState)
+                    Text(context.state.clockLabel(startTime: context.attributes.startTime, isStale: context.isStale))
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -89,6 +89,7 @@ struct FirepowerWidget: Widget {
 private struct LockScreenView: View {
     let attributes: FirepowerActivityAttributes
     let state: FirepowerActivityAttributes.ContentState
+    let isStale: Bool
 
     var body: some View {
         Group {
@@ -133,7 +134,7 @@ private struct LockScreenView: View {
         let winner = state.winnerTricode(homeTeam: attributes.homeTeam, awayTeam: attributes.awayTeam)
         let homeIsWinner = winner == attributes.homeTeam
         let awayIsWinner = winner == attributes.awayTeam
-        let clock = state.isPregame ? "Pregame" : state.isEnded ? "" : state.gameState
+        let clock = state.isEnded ? "" : state.clockLabel(startTime: attributes.startTime, isStale: isStale)
 
         return HStack(alignment: .center, spacing: 0) {
             // Home side
@@ -373,8 +374,21 @@ private func teamLogo(_ tricode: String, size: CGFloat) -> some View {
     FirepowerActivityAttributes.ContentState.previewEnded
 }
 
+// Tracked after puck drop (or once the start time passes): plain "Pregame"
+// until the first channel push arrives.
 #Preview("Lock — Pregame", as: .content, using: FirepowerActivityAttributes(
     sport: "nhl", homeTeam: "BOS", awayTeam: "NYR", gameID: "2025020001"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.previewEmpty
+}
+
+// Tracked hours before puck drop: the center shows the scheduled local start
+// time (via attributes.startTime) instead of "Pregame".
+#Preview("Lock — Pregame (scheduled time)", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "BOS", awayTeam: "NYR", gameID: "2025020001",
+    startTime: Date().addingTimeInterval(8 * 3600)
 )) {
     FirepowerWidget()
 } contentStates: {

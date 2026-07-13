@@ -4,7 +4,7 @@ import Foundation
 // FirepowerActivityAttributes — the Live Activity contract between backend and iOS.
 //
 // Static data (set at Activity.request time, never changes for this game):
-//   sport, homeTeam, awayTeam, gameID, pinnedTricode
+//   sport, homeTeam, awayTeam, gameID, pinnedTricode, startTime
 //
 // Dynamic data (ContentState — updated by every APNs push):
 //   scores, xG, gameState, structured event fields
@@ -29,19 +29,23 @@ public struct FirepowerActivityAttributes: ActivityAttributes {
     public let awayTeam: String      // "NYR"
     public let gameID: String        // NHL game ID, for deduplication
     public let pinnedTricode: String? // Which team to show in DI minimal (nil → home)
+    public let startTime: Date?      // Scheduled puck drop; set by iOS at activity start,
+                                     // never pushed. Drives the pregame time display.
 
     public init(
         sport: String,
         homeTeam: String,
         awayTeam: String,
         gameID: String,
-        pinnedTricode: String? = nil
+        pinnedTricode: String? = nil,
+        startTime: Date? = nil
     ) {
         self.sport = sport
         self.homeTeam = homeTeam
         self.awayTeam = awayTeam
         self.gameID = gameID
         self.pinnedTricode = pinnedTricode
+        self.startTime = startTime
     }
 
     // MARK: - Dynamic
@@ -64,6 +68,24 @@ public struct FirepowerActivityAttributes: ActivityAttributes {
         // Derived
         public var isEnded: Bool { gameState.lowercased() == "final" }
         public var isPregame: Bool { gameState.isEmpty }
+
+        /// Center-of-activity label shared by the lock screen and Dynamic Island.
+        ///
+        /// Pregame progression (no pushes arrive before the first event, so the
+        /// switch from scheduled time to "Pregame" rides the stale-date re-render —
+        /// LiveActivityManager sets the initial staleDate to the game start):
+        ///   - before puck drop: the scheduled start time, e.g. "6:00 PM"
+        ///   - at/after puck drop (isStale or startTime passed): "Pregame"
+        ///   - first push onward: the pushed gameState ("14:32 left, 2nd period")
+        ///   - game over: "Final"
+        public func clockLabel(startTime: Date?, isStale: Bool, now: Date = .now) -> String {
+            if isEnded { return "Final" }
+            guard isPregame else { return gameState }
+            if let start = startTime, !isStale, start > now {
+                return start.formatted(date: .omitted, time: .shortened)
+            }
+            return "Pregame"
+        }
 
         // Resolved event type: prefer the new structured field; fall back to lastEvent synthesis.
         // This means the widget shows something on old backend pushes (e.g. "Goal") instead
