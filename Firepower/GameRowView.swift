@@ -123,7 +123,8 @@ struct GameRowView: View {
                     await activityManager.startActivity(
                         homeTeam: game.homeTeam.abbrev,
                         awayTeam: game.awayTeam.abbrev,
-                        gameID: String(game.id)
+                        gameID: String(game.id),
+                        startTime: game.startDate
                     )
                 }
             } label: {

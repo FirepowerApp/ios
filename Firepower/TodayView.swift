@@ -184,7 +184,7 @@ struct TodayView: View {
     // MARK: - Notification deep link
 
     // Pre-game notification taps deliver a URL scheme:
-    //   firepower://start?gameID=X&homeTeam=Y&awayTeam=Z
+    //   firepower://start?gameID=X&homeTeam=Y&awayTeam=Z&startTimeUTC=ISO8601
     private func handleDeepLink(_ url: URL) {
         guard url.scheme == "firepower", url.host == "start" else { return }
         let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
@@ -196,8 +196,11 @@ struct TodayView: View {
               let homeTeam = params["homeTeam"],
               let awayTeam = params["awayTeam"] else { return }
 
+        let startTime = params["startTimeUTC"].flatMap { ISO8601DateFormatter().date(from: $0) }
+
         Task {
-            await activityManager.startActivity(homeTeam: homeTeam, awayTeam: awayTeam, gameID: gameID)
+            await activityManager.startActivity(
+                homeTeam: homeTeam, awayTeam: awayTeam, gameID: gameID, startTime: startTime)
         }
     }
 

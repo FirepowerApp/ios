@@ -50,6 +50,66 @@ final class LiveActivityManager: ObservableObject {
         case unavailable // iOS < 18 or not supported on this device
     }
 
+    init() {
+        rehydrate()
+    }
+
+    // MARK: - Rehydration
+
+    /// Re-adopts Live Activities that are still running system-side. Activities
+    /// outlive the app process (iOS routinely kills the app in the background),
+    /// but this dictionary doesn't — without rehydration a relaunch shows every
+    /// tracked game as untracked, double-starts activities, miscounts the cap,
+    /// and can't stop the orphans.
+    private func rehydrate() {
+        for activity in Activity<FirepowerActivityAttributes>.activities {
+            guard activity.activityState != .ended, activity.activityState != .dismissed else { continue }
+            let gameID = activity.attributes.gameID
+
+            // Two live activities for one game is always a bug (pre-rehydration
+            // double-Track); keep the first and end the extra.
+            guard activities[gameID] == nil else {
+                print("LiveActivityManager: ending duplicate activity for game \(gameID) id=\(activity.id)")
+                Task { await activity.end(nil, dismissalPolicy: .immediate) }
+                continue
+            }
+
+            activities[gameID] = activity
+            observe(activity, gameID: gameID, teamTricode: logTricode(for: activity.attributes))
+            print("LiveActivityManager: rehydrated activity for game \(gameID) id=\(activity.id) activityState=\(activity.activityState)")
+        }
+        if !activities.isEmpty { state = .tracking }
+    }
+
+    /// Which team's tricode to use in log lines — mirrors the channel pick in
+    /// startActivity (home preferred).
+    private func logTricode(for attributes: FirepowerActivityAttributes) -> String {
+        [attributes.homeTeam, attributes.awayTeam]
+            .compactMap { NHLTeam.team(for: $0) }
+            .first(where: { !$0.channelId.isEmpty })?.tricode ?? attributes.homeTeam
+    }
+
+    /// Watches an activity's lifecycle (freeing its slot on end/dismiss) and
+    /// attaches the debug log streams. Used for both fresh starts and rehydration.
+    private func observe(_ activity: Activity<FirepowerActivityAttributes>, gameID: String, teamTricode: String) {
+        Task {
+            for await s in activity.activityStateUpdates {
+                print("LiveActivityManager: [game \(gameID)] activityState → \(s)")
+                if s == .ended || s == .dismissed {
+                    // Only clear the slot if this instance still owns it — an
+                    // ended duplicate must not evict the survivor.
+                    if activities[gameID]?.id == activity.id {
+                        activities[gameID] = nil
+                        atActivityLimit = false  // a slot freed up
+                        if activities.isEmpty { state = .idle }
+                    }
+                }
+            }
+        }
+        Task { await logPushTokenUpdates(activity: activity, teamTricode: teamTricode) }
+        Task { await logContentStateUpdates(activity: activity, teamTricode: teamTricode) }
+    }
+
     // MARK: - Authorization check
 
     func checkAuthorization() {
@@ -64,10 +124,11 @@ final class LiveActivityManager: ObservableObject {
 
     /// Starts a Live Activity for the given game and subscribes to the team channel.
     /// - Parameters:
-    ///   - homeTeam: tricode e.g. "BOS"
-    ///   - awayTeam: tricode e.g. "NYR"
-    ///   - gameID:   NHL game ID for deduplication
-    func startActivity(homeTeam: String, awayTeam: String, gameID: String) async {
+    ///   - homeTeam:  tricode e.g. "BOS"
+    ///   - awayTeam:  tricode e.g. "NYR"
+    ///   - gameID:    NHL game ID for deduplication
+    ///   - startTime: scheduled puck drop; shown in the activity until it passes
+    func startActivity(homeTeam: String, awayTeam: String, gameID: String, startTime: Date? = nil) async {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
             state = .denied
             return
@@ -94,14 +155,22 @@ final class LiveActivityManager: ObservableObject {
             homeTeam: homeTeam,
             awayTeam: awayTeam,
             gameID: gameID,
-            pinnedTricode: pinnedTricode
+            pinnedTricode: pinnedTricode,
+            startTime: startTime
         )
         let initialState = FirepowerActivityAttributes.ContentState()
 
-        let content = ActivityContent(
-            state: initialState,
-            staleDate: Date().addingTimeInterval(90)   // first stale-date; pushes will update this
-        )
+        // First stale-date; pushes will update it. For a pregame start, stale at
+        // puck drop — that re-render is what flips the widget from the scheduled
+        // time ("6:00 PM") to "Pregame" (see ContentState.clockLabel). Otherwise
+        // the usual 90s window applies.
+        let firstStaleDate: Date
+        if let startTime, startTime > Date() {
+            firstStaleDate = startTime
+        } else {
+            firstStaleDate = Date().addingTimeInterval(90)
+        }
+        let content = ActivityContent(state: initialState, staleDate: firstStaleDate)
 
         do {
             // Subscribe to whichever team's channel is configured. The backend
@@ -125,24 +194,7 @@ final class LiveActivityManager: ObservableObject {
             activities[gameID] = activity
             state = .tracking
             atActivityLimit = false  // a start succeeded, so we're under the cap
-
-            // Drop the activity from the dict when it ends (stop or game-end push)
-            // so its row flips back to "Track".
-            Task {
-                for await s in activity.activityStateUpdates {
-                    print("LiveActivityManager: [game \(gameID)] activityState → \(s)")
-                    if s == .ended || s == .dismissed {
-                        activities[gameID] = nil
-                        atActivityLimit = false  // a slot freed up
-                        if activities.isEmpty { state = .idle }
-                    }
-                }
-            }
-
-            // Log push token updates for debugging. The backend delivers via the
-            // broadcast channel (nhl-team-{tricode}); no per-device registration needed.
-            Task { await logPushTokenUpdates(activity: activity, teamTricode: team.tricode) }
-            Task { await logContentStateUpdates(activity: activity, teamTricode: team.tricode) }
+            observe(activity, gameID: gameID, teamTricode: team.tricode)
         } catch {
             state = activities.isEmpty ? .idle : .tracking
             // The OS cap is the only failure we can recover from by freeing a

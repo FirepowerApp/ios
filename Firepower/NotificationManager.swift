@@ -74,10 +74,11 @@ struct NotificationManager {
             content.body = "Tap to track the game on your lock screen"
             content.sound = .default
             content.userInfo = [
-                "gameID":   String(game.id),
-                "homeTeam": game.homeTeam.abbrev,
-                "awayTeam": game.awayTeam.abbrev,
-                "tricode":  tricode
+                "gameID":       String(game.id),
+                "homeTeam":     game.homeTeam.abbrev,
+                "awayTeam":     game.awayTeam.abbrev,
+                "tricode":      tricode,
+                "startTimeUTC": game.startTimeUTC
             ]
 
             let dc = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: alertTime)

@@ -67,7 +67,9 @@ cp "$PLANNING/backend/watchgameupdates/internal/notification/liveactivity/format
 
 ## iOS ↔ Backend wire format coordination
 
-The iOS `ContentState` (in `FirepowerShared`) and the backend `contentState` struct in `formatter.go` must stay in sync. When changing the wire format:
+Only the dynamic `ContentState` crosses the wire. The iOS `ContentState` (in `FirepowerShared`) and the backend `contentState` struct in `formatter.go` must stay in sync. When changing the wire format:
+
+**Static attributes are iOS-only — they never need backend coordination.** Fields on `FirepowerActivityAttributes` itself (`sport`, `homeTeam`, `awayTeam`, `gameID`, `pinnedTricode`, `startTime`) are set once by iOS at `Activity.request` time and are never pushed. `startTime`, for example, is the scheduled puck drop the app already knows from the NHL schedule; it drives the pregame time display with no backend involvement. Adding a static attribute is a pure iOS change. The sync rules below apply only to `ContentState`.
 
 1. **Backend branch first:** Create the backend branch (e.g. `NelsonBlakeN/live-activity-event-fields`) in the `FirepowerApp/backend` repo.
 2. **iOS is backward-compatible by default:** `ContentState` decodes new fields as optional and falls back to legacy fields (`lastEvent`) via `resolved*` accessors. The iOS change can ship **before or after** the backend change.

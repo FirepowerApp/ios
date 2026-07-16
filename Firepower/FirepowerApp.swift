@@ -58,11 +58,15 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             var components = URLComponents()
             components.scheme = "firepower"
             components.host = "start"
-            components.queryItems = [
+            var queryItems = [
                 URLQueryItem(name: "gameID",   value: gameID),
                 URLQueryItem(name: "homeTeam", value: homeTeam),
                 URLQueryItem(name: "awayTeam", value: awayTeam),
             ]
+            if let startTimeUTC = info["startTimeUTC"] as? String {
+                queryItems.append(URLQueryItem(name: "startTimeUTC", value: startTimeUTC))
+            }
+            components.queryItems = queryItems
             if let url = components.url {
                 UIApplication.shared.open(url)
             }
