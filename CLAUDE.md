@@ -71,6 +71,8 @@ Only the dynamic `ContentState` crosses the wire. The iOS `ContentState` (in `Fi
 
 **Static attributes are iOS-only — they never need backend coordination.** Fields on `FirepowerActivityAttributes` itself (`sport`, `homeTeam`, `awayTeam`, `gameID`, `pinnedTricode`, `startTime`) are set once by iOS at `Activity.request` time and are never pushed. `startTime`, for example, is the scheduled puck drop the app already knows from the NHL schedule; it drives the pregame time display with no backend involvement. Adding a static attribute is a pure iOS change. The sync rules below apply only to `ContentState`.
 
+**The backend never sends `aps.event: "end"` — the iOS client alone decides when a Live Activity ends.** A push with `event:"end"` is applied by the OS directly, with no app code in the loop (see "no running device/activity is required to push to a channel" above), so once the backend sends it there is no point where the app can reconsider the dismissal timing. The backend always sends `event:"update"`, including on the final push (content `gameState:"Final"`, a long stale-date, but the activity stays alive). `LiveActivityManager.endIfFinal` ends the activity itself the moment it observes `isEnded`, with its own dismissal window. Any change to `formatter.go`'s `aps.event` logic must preserve this — reintroducing `event:"end"` forecloses the client's ability to control anything about how the game-over state is presented.
+
 1. **Backend branch first:** Create the backend branch (e.g. `NelsonBlakeN/live-activity-event-fields`) in the `FirepowerApp/backend` repo.
 2. **iOS is backward-compatible by default:** `ContentState` decodes new fields as optional and falls back to legacy fields (`lastEvent`) via `resolved*` accessors. The iOS change can ship **before or after** the backend change.
 3. **Deployment order (recommended):** Ship the iOS update first (App Store review takes ~24h), then deploy the backend. The iOS app degrades gracefully on the old backend.
@@ -79,6 +81,7 @@ Only the dynamic `ContentState` crosses the wire. The iOS `ContentState` (in `Fi
 ## Key files
 
 - `Firepower/` — main app target (TodayView, LiveActivityManager, FirepowerApp, NHLScheduleClient, OffseasonReplay)
+- `Firepower/LiveActivityManager.swift` — Live Activity lifecycle. `rehydrate()`/`rehydratePlan` reconcile tracked state against the OS's running activities on every foreground; `endIfFinal` is the only place in the app that ends a finished game's activity (see the wire-format section above). `TodayView`'s `reconcile()` calls `rehydrate()` on cold launch and every scenePhase transition to `.active`.
 - `Firepower/OffseasonReplay.swift` — offseason-only date remapping: in the June 22–Sept 30 window, maps today onto the real 2025-26 date and reshapes fetched games onto today (FUT, scores cleared, DST-aware). Anchors mirror the emulator's `cmd/buildschedule` flags; a pinned test in `FirepowerTests` flags drift.
 - `FirepowerShared/` — local Swift package shared by app and widget (FirepowerActivityAttributes, NHLColor, NHLTeamColors)
 - `FirepowerActivityKit/` — widget extension (FirepowerWidget, FirepowerActivityKitBundle)
