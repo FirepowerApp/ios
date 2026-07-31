@@ -5,14 +5,72 @@ import Foundation
 
 // LiveActivityManager controls the lifecycle of Live Activities. Users can track
 // multiple games at once, so activities are keyed by game ID; each has its own
-// APNs channel subscription and lives independently until stopped or ended by a
-// game-end push.
+// APNs channel subscription and lives independently until stopped or ended by
+// this app itself.
+//
+// The backend NEVER sends event:"end". A push with event:"end" is applied by
+// the OS directly with no app code in the loop (channel pushes don't require
+// the app to be running at all — see CLAUDE.md), which would foreclose any
+// chance for this app to decide the dismissal timing. Instead the backend
+// always sends event:"update", including on the final push (gameState=Final,
+// a long stale-date, but the activity stays alive). Ending it — and choosing
+// how long "Final" stays visible — is entirely this app's job. See endIfFinal.
+//
+// Rehydration lifecycle — who clears a tracked entry, and why absence (not
+// state) is the prune signal:
+//
+//                       Activity.request()
+//                              │
+//                              ▼
+//    ┌──────────────────── .active ────────────────────┐
+//    │                        │                        │
+//    │  user taps Tracking    │  backend Final push     │  8h budget exhausted
+//    │        │               │  (event:"update",        │  (nobody ended it
+//    │        ▼               │   content isEnded)       │   in time)
+//    │  stopActivity()        │        │                │        │
+//    │  clears tracked[id] ───┼─┐      ▼                │        ▼
+//    │                        │ │  endIfFinal() ─────────┼──►  .ended
+//    │                        │ │  (live contentState     │        │
+//    │                        │ │   observer, if the      │        │
+//    │                        │ │   app is foregrounded;  │        │
+//    │                        │ │   else rehydrate()'s    │        │
+//    │                        │ │   .endFinal action on   │        │
+//    │                        │ │   next foreground)      │        │
+//    │                        │ │      │                 │        │
+//    │                        └─┴──►  .ended  ◄───────────┼────────┘
+//    │                                  │
+//    │                                  └──► observe() handler clears tracked[id]
+//    │
+//    │   user swipes card
+//    │        │
+//    │        ▼
+//    │   .dismissed ──► REMOVED FROM Activity<>.activities ENTIRELY
+//    │        │                        │
+//    │        │   process alive ───────┴──► observe() handler clears it
+//    │        │
+//    │        └── process was suspended (observe()'s task died with it)
+//    │                     │
+//    │                     ▼
+//    └──────────  rehydrate()'s prune, on next foreground
+//                 Absence is the ONLY signal here — a dismissed activity is not
+//                 enumerated, so state-based pruning would never fire. Hence the
+//                 grace period: absence also means "requested seconds ago and
+//                 not yet registered with the daemon."
 
 @MainActor
 final class LiveActivityManager: ObservableObject {
 
+    /// A tracked activity plus when we adopted it. The timestamp lives with the
+    /// activity (rather than in a parallel dictionary) so it is impossible to
+    /// track an activity without one — a missing timestamp would otherwise
+    /// silently disable the rehydrate prune's grace period.
+    struct Tracked {
+        let activity: Activity<FirepowerActivityAttributes>
+        let adoptedAt: Date
+    }
+
     /// Active Live Activities keyed by NHL game ID. One entry per tracked game.
-    @Published private(set) var activities: [String: Activity<FirepowerActivityAttributes>] = [:]
+    @Published private(set) var tracked: [String: Tracked] = [:]
     @Published private(set) var state: ActivityState = .idle
     @Published private(set) var pushToken: String?
 
@@ -29,16 +87,27 @@ final class LiveActivityManager: ObservableObject {
     /// 5); we stop at the same number so Track disables before a start would fail.
     static let maxConcurrentActivities = 5
 
+    /// How long a just-adopted entry is protected from the rehydrate prune, in
+    /// case Activity<>.activities hasn't enumerated it yet (Activity.request
+    /// returning is not documented to be synchronous with daemon registration).
+    static let pruneGrace: TimeInterval = 10
+
+    /// How long "Final" stays visible once WE end the activity. Apple clamps
+    /// the post-end lock-screen window to 4h regardless of what's requested
+    /// (ActivityUIDismissalPolicy.after(_:)) — this constant IS that ceiling,
+    /// not a tunable choice.
+    static let finalVisibleDuration: TimeInterval = 4 * 60 * 60
+
     /// At the concurrent-activity cap — either our hardcoded max or an OS
     /// rejection (which covers iOS lowering the limit under memory pressure).
     var isAtCapacity: Bool {
-        activities.count >= Self.maxConcurrentActivities || atActivityLimit
+        tracked.count >= Self.maxConcurrentActivities || atActivityLimit
     }
 
     /// Whether the given game currently has a live (non-ended) activity.
     func isTracking(gameID: String) -> Bool {
-        guard let activity = activities[gameID] else { return false }
-        return activity.activityState != .ended && activity.activityState != .dismissed
+        guard let entry = tracked[gameID] else { return false }
+        return entry.activity.activityState != .ended && entry.activity.activityState != .dismissed
     }
 
     enum ActivityState: Equatable {
@@ -54,31 +123,244 @@ final class LiveActivityManager: ObservableObject {
         rehydrate()
     }
 
-    // MARK: - Rehydration
+    // MARK: - Rehydration decision (pure — no ActivityKit, no clock, no I/O)
 
-    /// Re-adopts Live Activities that are still running system-side. Activities
-    /// outlive the app process (iOS routinely kills the app in the background),
-    /// but this dictionary doesn't — without rehydration a relaunch shows every
-    /// tracked game as untracked, double-starts activities, miscounts the cap,
-    /// and can't stop the orphans.
-    private func rehydrate() {
-        for activity in Activity<FirepowerActivityAttributes>.activities {
-            guard activity.activityState != .ended, activity.activityState != .dismissed else { continue }
-            let gameID = activity.attributes.gameID
+    enum RehydrateAction: Hashable {
+        case keep(gameID: String)
+        case adopt(gameID: String, activityID: String)
+        case endFinal(gameID: String, activityID: String)
+        case endDuplicate(activityID: String)
+        case prune(gameID: String)
+    }
 
-            // Two live activities for one game is always a bug (pre-rehydration
-            // double-Track); keep the first and end the extra.
-            guard activities[gameID] == nil else {
-                print("LiveActivityManager: ending duplicate activity for game \(gameID) id=\(activity.id)")
-                Task { await activity.end(nil, dismissalPolicy: .immediate) }
+    struct ActivitySnapshot: Equatable {
+        let activityID: String
+        let gameID: String
+        let isLive: Bool     // activityState is neither .ended nor .dismissed
+        let gameEnded: Bool  // the pushed ContentState reached Final (content.state.isEnded)
+
+        init(activityID: String, gameID: String, isLive: Bool, gameEnded: Bool = false) {
+            self.activityID = activityID
+            self.gameID = gameID
+            self.isLive = isLive
+            self.gameEnded = gameEnded
+        }
+    }
+
+    struct TrackedSnapshot: Equatable {
+        let activityID: String
+        let gameID: String
+        let isLive: Bool
+        let adoptedAt: Date
+    }
+
+    /// Decides what to do with each tracked/enumerated activity:
+    ///
+    ///   for each enumerated (live) activity:
+    ///     untracked, content not yet Final ......... adopt
+    ///     untracked, content already Final ......... endFinal (adopt, then end —
+    ///                                                  e.g. a cold relaunch long
+    ///                                                  after the game ended)
+    ///     tracked, same activityID, not Final ...... keep (never re-observe)
+    ///     tracked, same activityID, now Final ...... endFinal
+    ///     tracked, other ID, tracked one is dead ... adopt or endFinal per the
+    ///                                                  same not-Final/Final split
+    ///                                                  (prefer the live one —
+    ///                                                  ending the WRONG one here
+    ///                                                  would destroy the only
+    ///                                                  live activity)
+    ///     tracked, other ID, tracked one is live ... endDuplicate
+    ///     two enumerated snapshots share a gameID .. first one claims it (per
+    ///                                                  the rules above), every
+    ///                                                  later one is endDuplicate
+    ///                                                  regardless of what
+    ///                                                  `tracked` said going in
+    ///
+    ///   for each tracked entry absent from the enumeration:
+    ///     adoptedAt within `grace` of `now` ......... keep (just started; daemon
+    ///                                                  may not list it yet)
+    ///     otherwise ................................. prune (catches user swipes,
+    ///                                                  which remove the activity
+    ///                                                  from the enumeration
+    ///                                                  entirely — this is the
+    ///                                                  ONLY path that catches them)
+    nonisolated static func rehydratePlan(
+        enumerated: [ActivitySnapshot],
+        tracked: [TrackedSnapshot],
+        now: Date,
+        grace: TimeInterval
+    ) -> [RehydrateAction] {
+        var actions: [RehydrateAction] = []
+        var handledGameIDs = Set<String>()
+        let trackedByGameID = Dictionary(uniqueKeysWithValues: tracked.map { ($0.gameID, $0) })
+
+        // Which activityID has been claimed as the owner for each gameID
+        // WITHIN this pass. trackedByGameID alone isn't enough: it reflects
+        // state from BEFORE this call, so two live activities sharing a
+        // gameID that are BOTH new to `tracked` (e.g. two lingering
+        // activities left over from a pre-fix double-Track, rehydrated for
+        // the first time) would otherwise each independently see "untracked"
+        // and both get adopted — orphaning one activity's observe() loops and
+        // undercounting the real concurrency usage.
+        var claimedActivityID: [String: String] = [:]
+
+        func takeOwnership(gameID: String, snapshot: ActivitySnapshot) -> RehydrateAction {
+            claimedActivityID[gameID] = snapshot.activityID
+            return snapshot.gameEnded
+                ? .endFinal(gameID: gameID, activityID: snapshot.activityID)
+                : .adopt(gameID: gameID, activityID: snapshot.activityID)
+        }
+
+        for snapshot in enumerated {
+            guard snapshot.isLive else { continue }
+            let gameID = snapshot.gameID
+
+            if let claimed = claimedActivityID[gameID], claimed != snapshot.activityID {
+                actions.append(.endDuplicate(activityID: snapshot.activityID))
                 continue
             }
 
-            activities[gameID] = activity
-            observe(activity, gameID: gameID, teamTricode: logTricode(for: activity.attributes))
-            print("LiveActivityManager: rehydrated activity for game \(gameID) id=\(activity.id) activityState=\(activity.activityState)")
+            handledGameIDs.insert(gameID)
+
+            guard let existing = trackedByGameID[gameID] else {
+                actions.append(takeOwnership(gameID: gameID, snapshot: snapshot))
+                continue
+            }
+
+            if existing.activityID == snapshot.activityID {
+                claimedActivityID[gameID] = snapshot.activityID
+                actions.append(
+                    snapshot.gameEnded
+                        ? .endFinal(gameID: gameID, activityID: snapshot.activityID)
+                        : .keep(gameID: gameID)
+                )
+            } else if !existing.isLive {
+                // What we hold is dead; prefer the live enumerated one instead
+                // of ending it — ending it here would destroy a live activity.
+                actions.append(takeOwnership(gameID: gameID, snapshot: snapshot))
+            } else {
+                actions.append(.endDuplicate(activityID: snapshot.activityID))
+            }
         }
-        if !activities.isEmpty { state = .tracking }
+
+        for entry in tracked where !handledGameIDs.contains(entry.gameID) {
+            if now.timeIntervalSince(entry.adoptedAt) < grace {
+                actions.append(.keep(gameID: entry.gameID))
+            } else {
+                actions.append(.prune(gameID: entry.gameID))
+            }
+        }
+
+        return actions
+    }
+
+    // MARK: - Rehydration (ActivityKit at the edges; decision above)
+
+    /// Re-adopts Live Activities that are still running system-side and prunes
+    /// ones that are gone. Called from init() and from every foreground
+    /// reconcile — must stay idempotent, since the previous implementation
+    /// re-observing an already-adopted activity would leak three infinite
+    /// `for await` loops per call.
+    func rehydrate() {
+        let enumerated = Activity<FirepowerActivityAttributes>.activities.map {
+            ActivitySnapshot(
+                activityID: $0.id,
+                gameID: $0.attributes.gameID,
+                isLive: $0.activityState != .ended && $0.activityState != .dismissed,
+                gameEnded: $0.content.state.isEnded
+            )
+        }
+        let trackedSnapshots = tracked.map { gameID, entry in
+            TrackedSnapshot(
+                activityID: entry.activity.id,
+                gameID: gameID,
+                isLive: entry.activity.activityState != .ended && entry.activity.activityState != .dismissed,
+                adoptedAt: entry.adoptedAt
+            )
+        }
+
+        let actions = Self.rehydratePlan(
+            enumerated: enumerated, tracked: trackedSnapshots,
+            now: Date(), grace: Self.pruneGrace
+        )
+
+        var freedSlot = false
+        for action in actions {
+            switch action {
+            case .keep:
+                break
+
+            case .adopt(let gameID, let activityID):
+                guard let activity = Activity<FirepowerActivityAttributes>.activities
+                    .first(where: { $0.id == activityID }) else { continue }
+                adopt(activity, gameID: gameID)
+                print("LiveActivityManager: rehydrated activity for game \(gameID) id=\(activityID) activityState=\(activity.activityState)")
+
+            case .endFinal(let gameID, let activityID):
+                guard let activity = Activity<FirepowerActivityAttributes>.activities
+                    .first(where: { $0.id == activityID }) else { continue }
+                // Adopt only if we don't already own it — re-adopting would
+                // re-observe() an already-observed activity, the exact leak
+                // the identity check elsewhere in this function exists to avoid.
+                if tracked[gameID]?.activity.id != activityID {
+                    adopt(activity, gameID: gameID)
+                }
+                Task { await endIfFinal(activity) }
+
+            case .endDuplicate(let activityID):
+                guard let activity = Activity<FirepowerActivityAttributes>.activities
+                    .first(where: { $0.id == activityID }) else { continue }
+                print("LiveActivityManager: ending duplicate activity id=\(activityID)")
+                Task { await activity.end(nil, dismissalPolicy: .immediate) }
+
+            case .prune(let gameID):
+                tracked[gameID] = nil
+                freedSlot = true
+            }
+        }
+
+        // Only clear the runtime-learned OS cap when a slot actually freed —
+        // clearing it unconditionally would discard a real
+        // .targetMaximumExceeded / .globalMaximumExceeded signal.
+        if freedSlot { atActivityLimit = false }
+
+        // Never clobber .denied, which checkAuthorization() sets immediately
+        // before this call in TodayView's reconcile().
+        if state != .denied {
+            state = tracked.isEmpty ? .idle : .tracking
+        }
+    }
+
+    private func adopt(_ activity: Activity<FirepowerActivityAttributes>, gameID: String) {
+        tracked[gameID] = Tracked(activity: activity, adoptedAt: Date())
+        observe(activity, gameID: gameID, teamTricode: logTricode(for: activity.attributes))
+    }
+
+    /// Ends `activity` with a flat `finalVisibleDuration` dismissal window the
+    /// moment its content reaches Final — unless it's already ended/dismissed.
+    /// The backend never sends event:"end" (see the header comment), so this
+    /// is the one place in the whole pipeline that decides when a finished
+    /// game's Live Activity actually goes away.
+    ///
+    /// Called from two places, covering the two ways the app can learn a game
+    /// finished:
+    ///   - the live content-state observer below, for the common case where
+    ///     the app is foregrounded (or was backgrounded, not killed) when the
+    ///     Final push lands — reacts within moments.
+    ///   - rehydrate()'s .endFinal action, as the backstop for when the app
+    ///     process wasn't running at all — activity.content.state already
+    ///     reflects the OS-applied Final push regardless, so the very next
+    ///     foreground catches it even if no async loop ever saw it live.
+    private func endIfFinal(_ activity: Activity<FirepowerActivityAttributes>) async {
+        guard activity.content.state.isEnded,
+              activity.activityState != .ended,
+              activity.activityState != .dismissed else { return }
+        // Logged only once the guard confirms THIS call is the one actually
+        // ending it — two call sites both invoke endIfFinal for the same
+        // activity, and logging before this guard would misattribute credit
+        // if the other one already won the race.
+        print("LiveActivityManager: game \(activity.attributes.gameID) reached Final, ending activity id=\(activity.id)")
+        await activity.end(nil, dismissalPolicy: .after(Date().addingTimeInterval(Self.finalVisibleDuration)))
     }
 
     /// Which team's tricode to use in log lines — mirrors the channel pick in
@@ -98,10 +380,10 @@ final class LiveActivityManager: ObservableObject {
                 if s == .ended || s == .dismissed {
                     // Only clear the slot if this instance still owns it — an
                     // ended duplicate must not evict the survivor.
-                    if activities[gameID]?.id == activity.id {
-                        activities[gameID] = nil
+                    if tracked[gameID]?.activity.id == activity.id {
+                        tracked[gameID] = nil
                         atActivityLimit = false  // a slot freed up
-                        if activities.isEmpty { state = .idle }
+                        if tracked.isEmpty { state = .idle }
                     }
                 }
             }
@@ -140,7 +422,7 @@ final class LiveActivityManager: ObservableObject {
 
         // Respect the concurrent cap. The UI disables Track here, but guard
         // deep-link / notification starts too.
-        if activities.count >= Self.maxConcurrentActivities { return }
+        if tracked.count >= Self.maxConcurrentActivities { return }
 
         // Resolve which team's logo to show in DI minimal.
         // Priority: pinned home > pinned away > home fallback.
@@ -191,12 +473,12 @@ final class LiveActivityManager: ObservableObject {
                 pushType: .channel(team.channelId)
             )
             print("LiveActivityManager: activity started for game \(gameID) id=\(activity.id) activityState=\(activity.activityState)")
-            activities[gameID] = activity
+            tracked[gameID] = Tracked(activity: activity, adoptedAt: Date())
             state = .tracking
             atActivityLimit = false  // a start succeeded, so we're under the cap
             observe(activity, gameID: gameID, teamTricode: team.tricode)
         } catch {
-            state = activities.isEmpty ? .idle : .tracking
+            state = tracked.isEmpty ? .idle : .tracking
             // The OS cap is the only failure we can recover from by freeing a
             // slot; flag it so the UI disables further Track buttons.
             if let authError = error as? ActivityAuthorizationError {
@@ -214,11 +496,11 @@ final class LiveActivityManager: ObservableObject {
     // MARK: - Stop
 
     func stopActivity(gameID: String) async {
-        guard let activity = activities[gameID] else { return }
-        await activity.end(nil, dismissalPolicy: .immediate)
-        activities[gameID] = nil
+        guard let entry = tracked[gameID] else { return }
+        await entry.activity.end(nil, dismissalPolicy: .immediate)
+        tracked[gameID] = nil
         atActivityLimit = false  // stopping frees a slot, so re-enable Track
-        if activities.isEmpty {
+        if tracked.isEmpty {
             pushToken = nil
             state = .idle
         }
@@ -257,7 +539,7 @@ final class LiveActivityManager: ObservableObject {
                 content: content,
                 pushType: .token
             )
-            activities[Self.debugGameID] = activity
+            tracked[Self.debugGameID] = Tracked(activity: activity, adoptedAt: Date())
             state = .tracking
             print("Debug Live Activity started: \(activity.id)")
         } catch {
@@ -268,9 +550,9 @@ final class LiveActivityManager: ObservableObject {
 
     /// Drives the debug activity to a new state without APNs.
     func updateDebugState(_ newState: FirepowerActivityAttributes.ContentState) async {
-        guard let activity = activities[Self.debugGameID] else { return }
+        guard let entry = tracked[Self.debugGameID] else { return }
         let content = ActivityContent(state: newState, staleDate: Date().addingTimeInterval(3600))
-        await activity.update(content)
+        await entry.activity.update(content)
     }
 #endif
 
@@ -285,6 +567,13 @@ final class LiveActivityManager: ObservableObject {
             if let type_ = state.eventType   { print("  eventType:   \(type_)") }
             if let detail = state.eventDetail, !detail.isEmpty { print("  eventDetail: \(detail)") }
             if let team   = state.eventTeam  { print("  eventTeam:   \(team)") }
+
+            // Fast path: end it the moment Final arrives while this loop is
+            // alive to see it. rehydrate()'s .endFinal action is the backstop
+            // for when it wasn't.
+            if state.isEnded {
+                await endIfFinal(activity)
+            }
         }
     }
 
@@ -296,4 +585,3 @@ final class LiveActivityManager: ObservableObject {
         }
     }
 }
-

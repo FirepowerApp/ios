@@ -8,6 +8,10 @@ struct GameRowView: View {
     @ObservedObject var activityManager: LiveActivityManager
     @ObservedObject var prefs: UserPreferences
 
+    /// Driven by TodayView's TimelineView tick so the 4-hour Track gate opens
+    /// without the user relaunching or pulling to refresh.
+    var now: Date = .now
+
     @State private var isStarting = false
 
     private var homeTeam: NHLTeam? { NHLTeam.team(for: game.homeTeam.abbrev) }
@@ -112,9 +116,14 @@ struct GameRowView: View {
             // game on both teams' channels, so home vs away doesn't matter here.
             let hasChannel = homeTeam?.channelId.isEmpty == false
                           || awayTeam?.channelId.isEmpty == false
+            // Tracking opens TrackingWindow.lead before puck drop — starting
+            // earlier means the Live Activity is system-ended (Apple's 8h cap)
+            // before the game finishes.
+            let isTrackable = game.isTrackable(now: now)
             // Disable Track once we're at the Live Activity cap; stopping a game
             // frees a slot and re-enables it.
-            let canStart = hasChannel && !activityManager.isAtCapacity
+            let canStart = hasChannel && isTrackable && !activityManager.isAtCapacity
+
             Button {
                 guard canStart else { return }
                 Task {
@@ -128,7 +137,7 @@ struct GameRowView: View {
                     )
                 }
             } label: {
-                Text(hasChannel ? "Track" : "Soon")
+                Text(trackLabel(hasChannel: hasChannel, isTrackable: isTrackable))
                     .font(.caption.weight(.medium))
                     .foregroundStyle(canStart ? .white : .secondary)
                     .padding(.horizontal, 10)
@@ -138,5 +147,16 @@ struct GameRowView: View {
             }
             .disabled(!canStart)
         }
+    }
+
+    // Priority order matches the button state table in the design doc: no
+    // feed beats too-early beats at-capacity.
+    private func trackLabel(hasChannel: Bool, isTrackable: Bool) -> String {
+        guard hasChannel else { return "No feed" }
+        guard isTrackable else {
+            guard let opensAt = game.trackingOpensAt else { return "Track" }
+            return "Track at \(opensAt.formatted(date: .omitted, time: .shortened))"
+        }
+        return "Track"
     }
 }
