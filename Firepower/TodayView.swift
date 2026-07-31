@@ -17,12 +17,16 @@ struct TodayView: View {
     @ObservedObject private var prefs = UserPreferences.shared
 
     @State private var showingSettings = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
             Group {
                 if let error = store.fetchError, store.games.isEmpty {
                     errorState(error)
+                } else if store.games.isEmpty && store.isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if store.games.isEmpty && !store.isLoading {
                     #if DEBUG
                     ScrollView {
@@ -40,6 +44,7 @@ struct TodayView: View {
                     gameList
                 }
             }
+            .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .navigationTitle("Tonight")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
@@ -60,9 +65,11 @@ struct TodayView: View {
             }
         }
         .task {
-            await store.refreshIfStale()
-            await scheduleNotifications()
-            activityManager.checkAuthorization()
+            await reconcile()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            Task { await reconcile() }
         }
         .onOpenURL { url in
             handleDeepLink(url)
@@ -71,23 +78,28 @@ struct TodayView: View {
 
     // MARK: - Game list
 
+    // Ticks every 60s so the 4-hour Track gate opens on its own while the app
+    // is foregrounded, without needing a relaunch or pull-to-refresh. This does
+    // NOT refetch data — see ScheduleStore.freshnessWindow for that.
     private var gameList: some View {
         ScrollView {
-            LazyVStack(spacing: 16, pinnedViews: [.sectionHeaders]) {
-                pinnedSection
-                allGamesSection
-                #if DEBUG
-                debugSection
-                #endif
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                LazyVStack(spacing: 16, pinnedViews: [.sectionHeaders]) {
+                    pinnedSection(now: context.date)
+                    allGamesSection(now: context.date)
+                    #if DEBUG
+                    debugSection
+                    #endif
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 32)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .padding(.bottom, 32)
         }
     }
 
     @ViewBuilder
-    private var pinnedSection: some View {
+    private func pinnedSection(now: Date) -> some View {
         let pinned = store.pinnedGames(for: prefs.pinnedTeams)
         if !prefs.pinnedTeams.isEmpty || !pinned.isEmpty {
             Section {
@@ -99,7 +111,7 @@ struct TodayView: View {
                         .padding(.vertical, 8)
                 } else {
                     ForEach(pinned) { game in
-                        GameRowView(game: game, activityManager: activityManager, prefs: prefs)
+                        GameRowView(game: game, activityManager: activityManager, prefs: prefs, now: now)
                     }
                 }
             } header: {
@@ -109,12 +121,12 @@ struct TodayView: View {
     }
 
     @ViewBuilder
-    private var allGamesSection: some View {
+    private func allGamesSection(now: Date) -> some View {
         let others = store.otherGames(excluding: prefs.pinnedTeams)
         if !others.isEmpty {
             Section {
                 ForEach(others) { game in
-                    GameRowView(game: game, activityManager: activityManager, prefs: prefs)
+                    GameRowView(game: game, activityManager: activityManager, prefs: prefs, now: now)
                 }
             } header: {
                 sectionHeader(prefs.pinnedTeams.isEmpty ? "Today's Games" : "Other Games",
@@ -209,6 +221,27 @@ struct TodayView: View {
     private func scheduleNotifications() async {
         await NotificationManager.scheduleDailySummary(games: store.games, prefs: prefs)
         await NotificationManager.schedulePregameAlerts(games: store.games, prefs: prefs)
+    }
+
+    // MARK: - Reconcile
+
+    /// Brings displayed state back in line with reality. Called from both
+    /// `.task` (cold launch) and the scenePhase change to `.active` (resume),
+    /// which means it can run twice in a row on cold launch — the scene can
+    /// pass through .inactive before settling on .active.
+    ///
+    /// EVERY STEP BELOW MUST STAY IDEMPOTENT. That is what makes the double
+    /// run harmless: refresh() sets isLoading synchronously before its first
+    /// await (no double fetch), reloadCacheIfNewer() only acts on a strictly
+    /// newer timestamp, rehydrate() is safe to call any number of times, and
+    /// UNNotificationRequest replaces by identifier (no duplicate alerts). Do
+    /// not add a step with side effects that compound across repeated calls.
+    private func reconcile() async {
+        store.reloadCacheIfNewer()
+        await store.refreshIfStale()
+        await scheduleNotifications()
+        activityManager.checkAuthorization()
+        activityManager.rehydrate()
     }
 }
 

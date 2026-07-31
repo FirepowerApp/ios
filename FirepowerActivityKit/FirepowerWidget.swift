@@ -134,7 +134,7 @@ private struct LockScreenView: View {
         let winner = state.winnerTricode(homeTeam: attributes.homeTeam, awayTeam: attributes.awayTeam)
         let homeIsWinner = winner == attributes.homeTeam
         let awayIsWinner = winner == attributes.awayTeam
-        let clock = state.isEnded ? "" : state.clockLabel(startTime: attributes.startTime, isStale: isStale)
+        let clock = state.clockLabel(startTime: attributes.startTime, isStale: isStale)
 
         return HStack(alignment: .center, spacing: 0) {
             // Home side

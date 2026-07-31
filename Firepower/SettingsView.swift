@@ -134,7 +134,7 @@ struct SettingsView: View {
                 }
             }
 
-            if let lastFetch = UserDefaults.standard.data(forKey: "cachedGamesDate"),
+            if let lastFetch = UserDefaults.standard.data(forKey: ScheduleStore.dateKey),
                let date = try? JSONDecoder().decode(Date.self, from: lastFetch) {
                 LabeledContent("Last schedule fetch") {
                     Text(date, style: .relative)

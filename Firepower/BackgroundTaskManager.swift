@@ -34,14 +34,7 @@ struct BackgroundTaskManager {
         let handle = Task {
             do {
                 let games = try await NHLScheduleClient.fetchTodayGames()
-
-                // Persist to cache (same keys ScheduleStore reads on next launch)
-                if let data = try? JSONEncoder().encode(games) {
-                    UserDefaults.standard.set(data, forKey: "cachedGames")
-                }
-                if let dateData = try? JSONEncoder().encode(Date()) {
-                    UserDefaults.standard.set(dateData, forKey: "cachedGamesDate")
-                }
+                ScheduleStore.writeCache(games, at: Date())
 
                 let prefs = UserPreferences.shared
                 await NotificationManager.scheduleDailySummary(games: games, prefs: prefs)

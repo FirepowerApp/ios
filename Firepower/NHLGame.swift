@@ -1,5 +1,14 @@
 import Foundation
 
+/// How long before scheduled puck drop tracking becomes available. Bounded by
+/// Apple's 8-hour Live Activity budget: starting earlier means the activity is
+/// system-ended before the game finishes, and shortens the post-game Final
+/// window. A free enum (not a LiveActivityManager static) so NHLGame — a
+/// Foundation-only model — never reaches into the @MainActor ActivityKit layer.
+enum TrackingWindow {
+    static let lead: TimeInterval = 4 * 60 * 60
+}
+
 struct NHLGame: Identifiable, Codable {
     let id: Int
     let startTimeUTC: String
@@ -44,5 +53,19 @@ struct NHLGame: Identifiable, Codable {
 
     func pinnedTricode(from pinned: Set<String>) -> String? {
         [homeTeam.abbrev, awayTeam.abbrev].first { pinned.contains($0) }
+    }
+
+    /// Live games are always trackable. Games with no known start time fail
+    /// open (trackable) rather than blocking on missing data.
+    func isTrackable(now: Date = .now) -> Bool {
+        if isLive { return true }
+        guard isUpcoming else { return false }
+        guard let start = startDate else { return true }
+        return start.timeIntervalSince(now) <= TrackingWindow.lead
+    }
+
+    /// Wall-clock time at which tracking opens, for the disabled-button label.
+    var trackingOpensAt: Date? {
+        startDate.map { $0.addingTimeInterval(-TrackingWindow.lead) }
     }
 }
