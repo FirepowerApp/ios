@@ -12,9 +12,19 @@ import SwiftUI
 
 struct TodayView: View {
 
-    @StateObject private var store = ScheduleStore()
+    @StateObject private var store: ScheduleStore
     @StateObject private var activityManager = LiveActivityManager()
     @ObservedObject private var prefs = UserPreferences.shared
+
+    init() {
+        _store = StateObject(wrappedValue: ScheduleStore())
+    }
+
+    #if DEBUG
+    init(previewStore: ScheduleStore) {
+        _store = StateObject(wrappedValue: previewStore)
+    }
+    #endif
 
     @State private var showingSettings = false
     @Environment(\.scenePhase) private var scenePhase
@@ -30,7 +40,7 @@ struct TodayView: View {
                 } else if store.games.isEmpty && !store.isLoading {
                     #if DEBUG
                     ScrollView {
-                        LazyVStack(spacing: 16, pinnedViews: [.sectionHeaders]) {
+                        LazyVStack(spacing: 16, pinnedViews: []) {
                             debugSection
                         }
                         .padding(.horizontal, 16)
@@ -84,7 +94,7 @@ struct TodayView: View {
     private var gameList: some View {
         ScrollView {
             TimelineView(.periodic(from: .now, by: 60)) { context in
-                LazyVStack(spacing: 16, pinnedViews: [.sectionHeaders]) {
+                LazyVStack(spacing: 16, pinnedViews: []) {
                     pinnedSection(now: context.date)
                     allGamesSection(now: context.date)
                     #if DEBUG
@@ -247,4 +257,31 @@ struct TodayView: View {
 
 #Preview {
     TodayView()
+}
+
+// Long-list preview: two pinned teams + 13 other games, enough rows to scroll
+// past both section headers and verify they scroll off rather than floating.
+#Preview("Long list — scroll header test") {
+    let games: [NHLGame] = [
+        // Pinned
+        NHLGame(id: 1, startTimeUTC: "2026-08-04T22:00:00Z", homeTeam: .init(abbrev: "BOS"), awayTeam: .init(abbrev: "NYR"), gameState: "FUT", gameType: 2),
+        NHLGame(id: 2, startTimeUTC: "2026-08-05T00:00:00Z", homeTeam: .init(abbrev: "VAN"), awayTeam: .init(abbrev: "EDM"), gameState: "FUT", gameType: 2),
+        // Other games
+        NHLGame(id: 3,  startTimeUTC: "2026-08-04T22:00:00Z", homeTeam: .init(abbrev: "TOR"), awayTeam: .init(abbrev: "MTL"), gameState: "FUT", gameType: 2),
+        NHLGame(id: 4,  startTimeUTC: "2026-08-04T22:00:00Z", homeTeam: .init(abbrev: "DET"), awayTeam: .init(abbrev: "CHI"), gameState: "FUT", gameType: 2),
+        NHLGame(id: 5,  startTimeUTC: "2026-08-04T22:00:00Z", homeTeam: .init(abbrev: "PIT"), awayTeam: .init(abbrev: "WSH"), gameState: "FUT", gameType: 2),
+        NHLGame(id: 6,  startTimeUTC: "2026-08-04T23:00:00Z", homeTeam: .init(abbrev: "NYI"), awayTeam: .init(abbrev: "NJD"), gameState: "FUT", gameType: 2),
+        NHLGame(id: 7,  startTimeUTC: "2026-08-04T23:00:00Z", homeTeam: .init(abbrev: "CAR"), awayTeam: .init(abbrev: "FLA"), gameState: "FUT", gameType: 2),
+        NHLGame(id: 8,  startTimeUTC: "2026-08-04T23:00:00Z", homeTeam: .init(abbrev: "CBJ"), awayTeam: .init(abbrev: "BUF"), gameState: "FUT", gameType: 2),
+        NHLGame(id: 9,  startTimeUTC: "2026-08-05T00:00:00Z", homeTeam: .init(abbrev: "STL"), awayTeam: .init(abbrev: "MIN"), gameState: "FUT", gameType: 2),
+        NHLGame(id: 10, startTimeUTC: "2026-08-05T00:00:00Z", homeTeam: .init(abbrev: "NSH"), awayTeam: .init(abbrev: "WPG"), gameState: "FUT", gameType: 2),
+        NHLGame(id: 11, startTimeUTC: "2026-08-05T00:00:00Z", homeTeam: .init(abbrev: "DAL"), awayTeam: .init(abbrev: "COL"), gameState: "FUT", gameType: 2),
+        NHLGame(id: 12, startTimeUTC: "2026-08-05T01:00:00Z", homeTeam: .init(abbrev: "CGY"), awayTeam: .init(abbrev: "SEA"), gameState: "FUT", gameType: 2),
+        NHLGame(id: 13, startTimeUTC: "2026-08-05T01:00:00Z", homeTeam: .init(abbrev: "VGK"), awayTeam: .init(abbrev: "ANA"), gameState: "FUT", gameType: 2),
+        NHLGame(id: 14, startTimeUTC: "2026-08-05T01:00:00Z", homeTeam: .init(abbrev: "LAK"), awayTeam: .init(abbrev: "SJS"), gameState: "FUT", gameType: 2),
+        NHLGame(id: 15, startTimeUTC: "2026-08-05T01:30:00Z", homeTeam: .init(abbrev: "ARI"), awayTeam: .init(abbrev: "PHI"), gameState: "FUT", gameType: 2),
+    ]
+    let store = ScheduleStore(previewGames: games)
+    UserPreferences.shared.pinnedTeams = ["BOS", "EDM"]
+    return TodayView(previewStore: store)
 }
