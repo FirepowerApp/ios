@@ -16,12 +16,16 @@ Firepower does not have a Firepower brand color. The visual identity of each scr
 
 ### Team color usage rules
 
-All rules are implemented in `FirepowerShared/Sources/FirepowerShared/NHLColor.swift` (`NHLColor.badgeColors`).
+All rules are implemented in `FirepowerShared/Sources/FirepowerShared/NHLColor.swift` (`NHLColor.badgeColors`, `NHLColor.needsVisibilityOutline`).
 
-1. **Primary first**: a team's color expression starts with `primaryColor`.
-2. **Dark-primary contrast guard** (applied first): if a team's `primaryColor` has WCAG relative luminance < `0.015` (e.g. LAK `#111111`, SEA `#001628`, EDM `#041E42`), swap to `secondaryColor`. The threshold is deliberately low so deep-but-distinct colors like NYR royal blue (`#0038A8`, lum ~0.058) keep their primary.
-3. **Collision rule** (applied second): if the two resolved colors are perceptually similar (normalized sRGB distance < `0.15` — practical examples: BOS/PIT gold, NYR/NYI blue), the **away** team swaps to its `secondaryColor`.
-4. **Foreground on team fill**: text/glyph color on a team-colored fill prefers the team's `secondaryColor`, so both team colors appear on the badge (e.g. VGK steel-grey fill with a gold tricode). The secondary is used only when it clears a 3:1 contrast ratio against the fill (WCAG AA for large/bold text — the tricode is 12pt heavy); otherwise it falls back to white or black, whichever is more legible (`NHLColor.badgeTextColor`). This fallback covers the cases where the secondary equals the fill after the dark-primary guard (e.g. LAK silver) or two dark brand colors collide (NYR royal-blue fill + red secondary → white).
+1. **Primary first**: badge fill and xG bar always start with `primaryColor`. Neither is ever swapped to `secondaryColor` as the fill.
+2. **Visibility outline** (caller responsibility): when a fill's WCAG luminance < `0.015`, `NHLColor.needsVisibilityOutline(_:)` returns `true` and the view adds a white stroke outline (`opacity: 0.45` on badges, `0.4` on xG capsules) so the shape reads on the near-black widget background. This keeps dark-navy teams (LAK, SEA, EDM, FLA, NSH, WSH, WPG — all `lum < 0.015`) on their real primary color instead of swapping to their accent. NYR royal blue (`#0038A8`, lum ~0.058) and STL blue (`#002F87`, lum ~0.038) are below the knee but above 0.015 — they do not need an outline.
+3. **Collision rule**: if the home and away primaries are perceptually similar (normalized sRGB distance < `0.15`), a three-level resolution applies:
+   - **Level 1** — away secondary viable (lum ≥ 0.015): away swaps to its secondary. E.g. NYR/NYI blue → NYI uses orange.
+   - **Level 2** — away secondary dark, home secondary viable: home swaps to its secondary (bidirectional flip). E.g. DET home vs CHI away (both red): DET flips to its white secondary; CHI stays red.
+   - **Level 3 (both-fail)** — both secondaries dark (lum < 0.015): white is tried first. If home primary clears 3:1 on white, home fills white and renders its primary as tricode text (e.g. red "NJD" on white at 5.6:1). If home primary fails on white (e.g. BOS/PIT gold at 1.7:1), home fills its black secondary (outlined in white) and renders its primary as text (gold "BOS" on black at 12:1). The away team always keeps its primary fill for both badge and bar. Badge fill always equals bar color — no exceptions.
+4. **Foreground on team fill**: text/glyph color on a team-colored fill prefers the team's `secondaryColor` when it clears a 3:1 contrast ratio against the fill (WCAG AA for 12pt heavy text); otherwise falls back to white or black, whichever is more legible (`NHLColor.badgeTextColor`). For dark-navy fills the secondary (typically a bright accent) passes contrast easily, so the tricode renders in the accent color on the navy badge.
+5. **Winner badge**: the winning team's badge always shows its tricode. No "WIN" label. The winner is signaled by the loser's score dimming to 55% opacity.
 
 ## Typography
 

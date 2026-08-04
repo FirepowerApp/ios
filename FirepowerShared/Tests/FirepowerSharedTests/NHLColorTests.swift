@@ -62,31 +62,38 @@ struct LuminanceTests {
     }
 }
 
-// MARK: - darkPrimaryGuard
+// MARK: - needsVisibilityOutline
 
-@Suite("NHLColor.darkPrimaryGuard")
-struct DarkPrimaryGuardTests {
+@Suite("NHLColor.needsVisibilityOutline")
+struct NeedsVisibilityOutlineTests {
 
-    @Test("LAK dark primary swaps to silver secondary") func lakDark() {
-        // LAK: primary=#111111 (luminance 0.004), secondary=#A2AAAD
-        let result = NHLColor.darkPrimaryGuard(primary: "#111111", secondary: "#A2AAAD")
-        #expect(result.relativeLuminance > 0.3) // silver, not black
+    @Test("LAK near-black primary needs outline") func lakNeedsOutline() {
+        // LAK #111111 lum ~0.006 < 0.015 threshold
+        #expect(NHLColor.needsVisibilityOutline(Color(hex: "#111111")) == true)
     }
 
-    @Test("SEA dark primary swaps to cyan secondary") func seaDark() {
-        let result = NHLColor.darkPrimaryGuard(primary: "#001628", secondary: "#99D9D9")
-        #expect(result.relativeLuminance > 0.3)
+    @Test("SEA navy primary needs outline") func seaNeedsOutline() {
+        // SEA #001628 lum ~0.007
+        #expect(NHLColor.needsVisibilityOutline(Color(hex: "#001628")) == true)
     }
 
-    @Test("BOS gold stays gold (not dark)") func bosKeepsPrimary() {
-        let result = NHLColor.darkPrimaryGuard(primary: "#FFB81C", secondary: "#000000")
-        #expect(result.relativeLuminance > 0.5) // still gold
+    @Test("EDM navy primary needs outline") func edmNeedsOutline() {
+        // EDM/FLA/NSH/WSH/WPG #041E42 lum ~0.014 — just below 0.015
+        #expect(NHLColor.needsVisibilityOutline(Color(hex: "#041E42")) == true)
     }
 
-    @Test("NYR blue stays blue (not below threshold)") func nyrKeepsPrimary() {
-        let result = NHLColor.darkPrimaryGuard(primary: "#0038A8", secondary: "#CE1126")
-        // #0038A8 luminance ~0.05 — below 0.08 threshold, should swap
-        #expect(result.relativeLuminance > 0.05)
+    @Test("BOS gold does not need outline") func bosNoOutline() {
+        #expect(NHLColor.needsVisibilityOutline(Color(hex: "#FFB81C")) == false)
+    }
+
+    @Test("NYR royal blue does not need outline") func nyrNoOutline() {
+        // NYR #0038A8 lum ~0.057 — above 0.015 threshold
+        #expect(NHLColor.needsVisibilityOutline(Color(hex: "#0038A8")) == false)
+    }
+
+    @Test("STL blue does not need outline") func stlNoOutline() {
+        // STL #002F87 lum ~0.038
+        #expect(NHLColor.needsVisibilityOutline(Color(hex: "#002F87")) == false)
     }
 }
 
@@ -95,36 +102,74 @@ struct DarkPrimaryGuardTests {
 @Suite("NHLColor.badgeColors — collision rule")
 struct CollisionTests {
 
-    @Test("BOS vs NYR — distinct, no swap") func bosVsNyr() {
-        let (home, away) = NHLColor.badgeColors(
+    @Test("BOS vs NYR — distinct primaries, no swap") func bosVsNyr() {
+        let (home, away, _) = NHLColor.badgeColors(
             homePrimary: "#FFB81C", homeSecondary: "#000000",
             awayPrimary: "#0038A8", awaySecondary: "#CE1126"
         )
-        // gold vs blue: distinct
+        // gold vs blue: distinct, no swap
         let dist = NHLColor.rgbDistance(home, away)
         #expect(dist >= NHLColor.collisionThreshold)
-        _ = away // away stays blue
     }
 
-    @Test("BOS vs PIT — collision, away uses black secondary") func bosVsPit() {
-        // BOS gold #FFB81C vs PIT gold #FCB514 — very similar
-        let (home, away) = NHLColor.badgeColors(
+    @Test("BOS home vs PIT away — both-fail: gold fails on white, home flips to black") func bosHomePitAway() {
+        // BOS gold #FFB81C vs PIT gold #FCB514 — collision fires.
+        // Both secondaries #000000 → both-fail. White tried: gold on white = 1.7:1 < 3.0 → fails.
+        // Home returns its secondary (#000000) with outline; homePrimaryText = false.
+        let (home, away, homePrimaryText) = NHLColor.badgeColors(
             homePrimary: "#FFB81C", homeSecondary: "#000000",
             awayPrimary: "#FCB514", awaySecondary: "#000000"
         )
-        // away resolved to secondary (black); distance from gold to black is large
-        let dist = NHLColor.rgbDistance(home, away)
-        #expect(dist >= NHLColor.collisionThreshold)
+        #expect(NHLColor.needsVisibilityOutline(home))           // home badge = black, needs outline
+        #expect(!NHLColor.needsVisibilityOutline(away))           // away badge = gold, no outline
+        #expect(!homePrimaryText)                                 // gold text flagged via isInvertedHome, not this
     }
 
-    @Test("NYR vs NYI — similar blues, away uses orange") func nyrVsNyi() {
-        // NYR #0038A8 vs NYI #003087 — both deep blue
-        let (_, away) = NHLColor.badgeColors(
+    @Test("CHI home vs NJD away — both-fail: red passes on white, home flips to white") func chiHomeNjdAway() {
+        // CHI red #CF0A2C vs NJD red #CE1126 — collision fires.
+        // Both secondaries #000000 → both-fail. White tried: red on white ~5.6:1 ≥ 3.0 → succeeds.
+        // Home returns white; homePrimaryText = true so caller shows primary (red) as text.
+        let (home, away, homePrimaryText) = NHLColor.badgeColors(
+            homePrimary: "#CF0A2C", homeSecondary: "#000000",
+            awayPrimary: "#CE1126", awaySecondary: "#000000"
+        )
+        #expect(abs(home.relativeLuminance - 1.0) < 0.01)        // home badge = white
+        #expect(!NHLColor.needsVisibilityOutline(away))           // away badge = red, no outline
+        #expect(homePrimaryText)                                  // caller uses red primary as text
+    }
+
+    @Test("DET home vs CHI away — bidirectional flip: home flips to white via secondary") func detHomeChiAway() {
+        // DET red #CE1126 vs CHI red #CF0A2C — collision fires.
+        // CHI secondary #000000 too dark → try DET secondary #FFFFFF → viable (lum 1.0).
+        // Home flips to white via Level 3 bidirectional; away keeps red primary.
+        // homePrimaryText = false here because DET secondary itself is white (not the both-fail path).
+        let (home, away, _) = NHLColor.badgeColors(
+            homePrimary: "#CE1126", homeSecondary: "#FFFFFF",
+            awayPrimary: "#CF0A2C", awaySecondary: "#000000"
+        )
+        #expect(abs(home.relativeLuminance - 1.0) < 0.01)        // home = white (#FFFFFF)
+        #expect(away.relativeLuminance > 0.1)                    // away = red primary
+    }
+
+    @Test("NYR vs NYI — similar blues, away uses orange secondary") func nyrVsNyi() {
+        // NYR #0038A8 vs NYI #003087 — both deep blue (collision fires).
+        // NYI secondary #FC4C02 (orange, lum ~0.26) is light enough → swap succeeds.
+        let (_, away, _) = NHLColor.badgeColors(
             homePrimary: "#0038A8", homeSecondary: "#CE1126",
             awayPrimary: "#003087", awaySecondary: "#FC4C02"
         )
-        // away should be FC4C02 (orange), not the dark blue
-        #expect(away.relativeLuminance > 0.1)
+        #expect(away.relativeLuminance > 0.1) // orange, not dark blue
+    }
+
+    @Test("EDM vs FLA — both navy primaries collide, FLA swaps to red secondary") func edmVsFlaNavyCollision() {
+        // Both #041E42 navy — identical primaries (max collision). FLA secondary
+        // #C8102E (red, lum ~0.14) is well above the threshold → swap succeeds.
+        let (home, away, _) = NHLColor.badgeColors(
+            homePrimary: "#041E42", homeSecondary: "#FC4C02",
+            awayPrimary: "#041E42", awaySecondary: "#C8102E"
+        )
+        #expect(away.relativeLuminance > NHLColor.darkPrimaryLuminanceThreshold)
+        _ = home // home keeps navy primary
     }
 }
 
@@ -157,13 +202,24 @@ struct BadgeTextColorTests {
         #expect(UIColor(text) == UIColor(.white))
     }
 
-    @Test("secondary equals fill (post dark-primary guard) → legible b/w fallback") func secondaryEqualsFill() {
-        // After the dark-primary guard, LAK's fill IS its silver secondary #A2AAAD.
-        // Silver-on-silver is invisible, so the text falls back to black (higher
-        // contrast on a light fill than white).
+    @Test("secondary equals fill → legible b/w fallback") func secondaryEqualsFill() {
+        // When fill and secondary are the same color, contrast ratio is 1:1 —
+        // below the 3:1 floor — so badgeTextColor falls back to white or black.
+        // On a light fill (#A2AAAD) black has higher contrast than white.
         let fill = Color(hex: "#A2AAAD")
         let text = NHLColor.badgeTextColor(fill: fill, secondary: Color(hex: "#A2AAAD"))
         #expect(UIColor(text) == UIColor(.black))
+    }
+
+    @Test("secondary equals fill, primary contrasts → primary text (DET on white)") func primaryFallbackOnWhite() {
+        // DET bidirectional flip: fill = white (#FFFFFF), secondary = white (same → 1:1, fails).
+        // Primary red #CE1126 is 5.6:1 on white — clears the 3:1 floor — so it's returned.
+        let text = NHLColor.badgeTextColor(
+            fill: Color(hex: "#FFFFFF"),
+            secondary: Color(hex: "#FFFFFF"),
+            primary: Color(hex: "#CE1126")
+        )
+        #expect(UIColor(text) == UIColor(Color(hex: "#CE1126")))
     }
 }
 

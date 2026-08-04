@@ -4,12 +4,17 @@ import UIKit
 // NHLColor — team-color utilities shared between the app and widget extension.
 //
 // Design system rules (from DESIGN.md):
-//   1. Primary first: start with primaryColor.
-//   2. Dark-primary guard: if primary luminance < darkPrimaryLuminanceThreshold on the
-//      dark widget background, swap to secondaryColor.
-//   3. Collision rule: if home and away resolved colors are perceptually similar
-//      (normalized RGB distance < 0.15), away swaps to its secondaryColor.
-//   4. Foreground on fill: white when fill luminance < 0.5, else secondaryColor.
+//   1. Primary first: badge fill and xG bar always start with primaryColor.
+//   2. Visibility outline: when a fill's luminance < darkPrimaryLuminanceThreshold,
+//      the caller adds a stroke outline so the shape reads on the near-black widget
+//      background. The primary color is kept — dark-navy teams (EDM, FLA, NSH, WSH,
+//      WPG, SEA) keep their navy fill. Check with needsVisibilityOutline(_:).
+//   3. Collision rule: if home and away primaries are perceptually similar (normalized
+//      sRGB distance < 0.15), away swaps to its secondaryColor — unless that secondary
+//      is also too dark, in which case the primary is kept (visible collision beats an
+//      invisible badge and xG bar).
+//   4. Foreground on fill: prefers the team's secondaryColor when it clears 3:1 contrast;
+//      falls back to white or black.
 //
 // All functions are pure — no state, no side effects.
 
@@ -58,29 +63,69 @@ public enum NHLColor {
     // Values < 0.15 cover known collision pairs (BOS gold vs PIT gold, NYR vs NYI blue).
     static let collisionThreshold: Double = 0.15
 
-    // A color is "too dark" for the Live Activity's ~85% black background when its
-    // luminance is below this value. 0.015 catches near-black teams (LAK #111111,
-    // SEA #001628, EDM #041E42) but preserves visually distinct dark colors like
-    // NYR royal blue (#0038A8, lum ~0.058) and STL blue (#002F87, lum ~0.030).
-    static let darkPrimaryLuminanceThreshold: Double = 0.015
+    // Luminance floor for the near-black widget background (~85% black). Colors below
+    // this threshold are invisible without an outline. 0.015 catches near-black teams
+    // (LAK #111111, SEA #001628, EDM/FLA/NSH/WSH/WPG #041E42) while preserving
+    // visually distinct dark colors like NYR royal blue (#0038A8, lum ~0.058).
+    public static let darkPrimaryLuminanceThreshold: Double = 0.015
 
-    /// Resolve badge fill colors for home and away teams, applying dark-primary
-    /// guard then collision rule.
+    /// Whether a fill color needs a stroke outline to stay readable on the dark widget
+    /// background. Used by TeamBadge and XGSection to conditionally add overlays.
+    public static func needsVisibilityOutline(_ color: Color) -> Bool {
+        color.relativeLuminance < darkPrimaryLuminanceThreshold
+    }
+
+    /// Resolve badge fill colors for home and away teams.
     ///
-    /// - Returns: `(homeFill, awayFill)` hex-initialized Colors ready for badge backgrounds.
+    /// Three-level collision resolution:
+    ///   1. No collision → both primaries.
+    ///   2. Away secondary viable (lum ≥ threshold) → away uses secondary.
+    ///      E.g. NYR/NYI blue: NYI swaps to orange.
+    ///   3. Away secondary dark → home uses its secondary instead (bidirectional flip).
+    ///      E.g. DET/CHI red: DET flips to white (#FFFFFF).
+    ///      Sub-case — both secondaries dark ("both-fail", e.g. BOS/PIT gold,
+    ///      CHI/NJD red): try white first. If home primary clears the text contrast
+    ///      floor on white, home fills white and `homePrimaryText` is set so callers
+    ///      render the primary as tricode text (e.g. red "NJD" on white). If home
+    ///      primary fails on white (e.g. BOS/PIT gold at 1.7:1), home fills its black
+    ///      secondary; callers detect the outlined-black case via
+    ///      `needsVisibilityOutline(homeFill) && !needsVisibilityOutline(homePrimary)`.
+    ///
+    /// - Returns: `(homeFill, awayFill, homePrimaryText)`. `homePrimaryText` is true
+    ///   when home fill is white from the both-fail fallback — callers should use
+    ///   homePrimary as the tricode text color instead of the secondary.
+    ///   Call `needsVisibilityOutline(_:)` per fill and add a stroke overlay when true.
     public static func badgeColors(
         homePrimary: String, homeSecondary: String,
         awayPrimary: String, awaySecondary: String
-    ) -> (home: Color, away: Color) {
-        // Step 1 — dark-primary guard: swap to secondary if primary disappears on dark bg
-        let homeResolved = darkPrimaryGuard(primary: homePrimary, secondary: homeSecondary)
-        let awayResolved = darkPrimaryGuard(primary: awayPrimary, secondary: awaySecondary)
+    ) -> (home: Color, away: Color, homePrimaryText: Bool) {
+        let homeResolved = Color(hex: homePrimary)
+        let awayResolved = Color(hex: awayPrimary)
 
-        // Step 2 — collision: if resolved colors are too similar, away swaps to secondary
-        if rgbDistance(homeResolved, awayResolved) < collisionThreshold {
-            return (homeResolved, Color(hex: awaySecondary))
+        guard rgbDistance(homeResolved, awayResolved) < collisionThreshold else {
+            return (homeResolved, awayResolved, false)
         }
-        return (homeResolved, awayResolved)
+
+        // Level 2: try away secondary.
+        let awaySecondaryColor = Color(hex: awaySecondary)
+        if awaySecondaryColor.relativeLuminance >= darkPrimaryLuminanceThreshold {
+            return (homeResolved, awaySecondaryColor, false)
+        }
+
+        // Level 3: away secondary too dark — flip home to its secondary instead.
+        let homeSecondaryColor = Color(hex: homeSecondary)
+
+        // Both-fail: home secondary also too dark. Try white — if home primary clears
+        // the text contrast floor on white, white is the cleanest option: visible without
+        // an outline, and the primary color reads as tricode text (red "NJD" at 5.6:1).
+        // Gold teams (BOS/PIT ~1.7:1) fail here and fall through to the black secondary.
+        if homeSecondaryColor.relativeLuminance < darkPrimaryLuminanceThreshold {
+            if contrastRatio(homeResolved, .white) >= badgeTextContrastFloor {
+                return (.white, awayResolved, true)
+            }
+        }
+
+        return (homeSecondaryColor, awayResolved, false)
     }
 
     // WCAG AA contrast floor for large/bold text. The tricode is 12pt heavy, which
@@ -90,14 +135,18 @@ public enum NHLColor {
 
     /// Pick the foreground text color for the tricode drawn on `fill`.
     ///
-    /// Prefers the team's `secondary` color so both team colors appear on the badge
-    /// (e.g. VGK steel-grey fill with a gold tricode). Falls back to white or black —
-    /// whichever is more legible — when the secondary doesn't clear the contrast
-    /// floor: e.g. the secondary equals the fill after the dark-primary guard, or
-    /// two dark brand colors collide (NYR royal blue fill + red secondary).
-    public static func badgeTextColor(fill: Color, secondary: Color) -> Color {
+    /// Priority: secondary → primary (optional) → white or black.
+    /// The secondary is tried first so both team colors appear on the badge (e.g. VGK
+    /// steel fill + gold tricode). If it fails the contrast floor, `primary` is tried
+    /// next — this surfaces the team's actual brand color in collision cases where the
+    /// badge fill is the secondary (e.g. DET white badge → red tricode at 5.6:1).
+    /// Plain white or black is the last resort.
+    public static func badgeTextColor(fill: Color, secondary: Color, primary: Color? = nil) -> Color {
         if contrastRatio(secondary, fill) >= badgeTextContrastFloor {
             return secondary
+        }
+        if let primary, contrastRatio(primary, fill) >= badgeTextContrastFloor {
+            return primary
         }
         return contrastRatio(.white, fill) >= contrastRatio(.black, fill) ? .white : .black
     }
@@ -109,11 +158,6 @@ public enum NHLColor {
     }
 
     // MARK: - Internal helpers
-
-    static func darkPrimaryGuard(primary: String, secondary: String) -> Color {
-        let c = Color(hex: primary)
-        return c.relativeLuminance < darkPrimaryLuminanceThreshold ? Color(hex: secondary) : c
-    }
 
     static func rgbDistance(_ a: Color, _ b: Color) -> Double {
         guard
