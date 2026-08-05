@@ -143,12 +143,13 @@ struct CollisionTests {
         // CHI secondary #000000 too dark → try DET secondary #FFFFFF → viable (lum 1.0).
         // Home flips to white via Level 3 bidirectional; away keeps red primary.
         // homePrimaryText = false here because DET secondary itself is white (not the both-fail path).
-        let (home, away, _) = NHLColor.badgeColors(
+        let (home, away, homePrimaryText) = NHLColor.badgeColors(
             homePrimary: "#CE1126", homeSecondary: "#FFFFFF",
             awayPrimary: "#CF0A2C", awaySecondary: "#000000"
         )
         #expect(abs(home.relativeLuminance - 1.0) < 0.01)        // home = white (#FFFFFF)
         #expect(away.relativeLuminance > 0.1)                    // away = red primary
+        #expect(!homePrimaryText)                                 // DET secondary was white — NOT the both-fail path
     }
 
     @Test("NYR vs NYI — similar blues, away uses orange secondary") func nyrVsNyi() {
@@ -209,6 +210,18 @@ struct BadgeTextColorTests {
         let fill = Color(hex: "#A2AAAD")
         let text = NHLColor.badgeTextColor(fill: fill, secondary: Color(hex: "#A2AAAD"))
         #expect(UIColor(text) == UIColor(.black))
+    }
+
+    @Test("dark fill, dark secondary, viable primary → primary text (BOS gold on black)") func primaryFallbackOnBlack() {
+        // BOS both-fail black badge: fill = black, secondary = black (1:1 fails),
+        // primary = gold #FFB81C (contrast on black = 12:1 ≥ 3.0 → gold returned).
+        // TeamBadge reaches this via isInvertedHome; this test exercises badgeTextColor directly.
+        let text = NHLColor.badgeTextColor(
+            fill: Color(hex: "#000000"),
+            secondary: Color(hex: "#000000"),
+            primary: Color(hex: "#FFB81C")
+        )
+        #expect(UIColor(text) == UIColor(Color(hex: "#FFB81C")))
     }
 
     @Test("secondary equals fill, primary contrasts → primary text (DET on white)") func primaryFallbackOnWhite() {

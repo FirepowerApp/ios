@@ -10,9 +10,9 @@ import UIKit
 //      background. The primary color is kept — dark-navy teams (EDM, FLA, NSH, WSH,
 //      WPG, SEA) keep their navy fill. Check with needsVisibilityOutline(_:).
 //   3. Collision rule: if home and away primaries are perceptually similar (normalized
-//      sRGB distance < 0.15), away swaps to its secondaryColor — unless that secondary
-//      is also too dark, in which case the primary is kept (visible collision beats an
-//      invisible badge and xG bar).
+//      sRGB distance < 0.15), a three-level resolution applies — away secondary, then
+//      bidirectional home-secondary flip, then white/black both-fail fallback. See
+//      badgeColors() doc for details.
 //   4. Foreground on fill: prefers the team's secondaryColor when it clears 3:1 contrast;
 //      falls back to white or black.
 //

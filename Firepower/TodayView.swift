@@ -282,6 +282,8 @@ struct TodayView: View {
         NHLGame(id: 15, startTimeUTC: "2026-08-05T01:30:00Z", homeTeam: .init(abbrev: "ARI"), awayTeam: .init(abbrev: "PHI"), gameState: "FUT", gameType: 2),
     ]
     let store = ScheduleStore(previewGames: games)
+    // NOTE: UserPreferences.shared persists to the real UserDefaults.standard —
+    // running this preview in Xcode overwrites your actual pinned teams on device.
     UserPreferences.shared.pinnedTeams = ["BOS", "EDM"]
     return TodayView(previewStore: store)
 }

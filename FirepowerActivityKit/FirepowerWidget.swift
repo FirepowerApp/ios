@@ -234,6 +234,10 @@ private struct TeamBadge: View {
         //
         // isInvertedHome: both-fail black fallback — home fills its dark secondary,
         // primary is the text color (e.g. gold "BOS" on black at 12:1).
+        // TODO: derived from fill rather than an explicit badgeColors signal — correct
+        // for all current NHL teams, but if a team's primaryColor is changed to something
+        // bright while keeping a dark secondary, this could misfire on non-collision games.
+        // Consider extending badgeColors' return tuple with a homeUsesBlackFill flag.
         let isInvertedHome = isHome
             && NHLColor.needsVisibilityOutline(fill)
             && !NHLColor.needsVisibilityOutline(Color(hex: selfPrimary))
@@ -282,11 +286,8 @@ private struct XGSection: View {
         // Bar color always matches badge fill — homeColor and awayColor are already the
         // resolved badge fills from badgeColors. needsVisibilityOutline handles the outline
         // for both capsules, including the black home bar in the both-fail inversion case.
-        let homeBarColor = homeColor
-        let awayBarColor = awayColor
-
-        let homeNeedsOutline = NHLColor.needsVisibilityOutline(homeBarColor)
-        let awayNeedsOutline = NHLColor.needsVisibilityOutline(awayBarColor)
+        let homeNeedsOutline = NHLColor.needsVisibilityOutline(homeColor)
+        let awayNeedsOutline = NHLColor.needsVisibilityOutline(awayColor)
 
         // Each bar is proportional to that team's raw xG share: homeXG / total.
         // At 3–1 xG the home bar is 75% wide, away is 25%. At 0–0 (or any tie)
@@ -317,7 +318,7 @@ private struct XGSection: View {
                 let w = geo.size.width
                 VStack(alignment: .leading, spacing: 3) {
                     ZStack(alignment: .leading) {
-                        Capsule().fill(homeBarColor)
+                        Capsule().fill(homeColor)
                         if homeNeedsOutline {
                             Capsule().strokeBorder(Color.white.opacity(0.4), lineWidth: 1)
                         }
@@ -325,7 +326,7 @@ private struct XGSection: View {
                     .frame(width: max(w * homeFraction, 2), height: 7)
 
                     ZStack(alignment: .leading) {
-                        Capsule().fill(awayBarColor)
+                        Capsule().fill(awayColor)
                         if awayNeedsOutline {
                             Capsule().strokeBorder(Color.white.opacity(0.4), lineWidth: 1)
                         }
