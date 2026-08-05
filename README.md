@@ -11,7 +11,7 @@ Firepower is an iOS 18 app built around ActivityKit Live Activities. Pin your te
 - **Team-colored design.** Each game uses the two teams' brand colors. A glance tells you who's playing before you read a single digit.
 - **xG as a headline metric.** Bold expected-goals values plus a proportional team-colored bar.
 - **Track opens 4 hours before puck drop.** Once the window opens, the Track button shows the scheduled start time (e.g. "6:00 PM") until the game begins, then flips to "Pregame" and finally to the live clock and xG on the first update. Earlier than that, the button shows when tracking opens instead of starting the activity too soon.
-- **Stays around after the final horn.** When the game ends, the Live Activity switches to a "Final" score card with a winner pill and stays on your lock screen for about 4 hours — no need to catch it the moment the game ends.
+- **Stays around after the final horn.** When the game ends, the Live Activity switches to a "Final" score card — the winner's badge keeps showing its tricode, and the loser's score dims — and stays on your lock screen for about 4 hours, no need to catch it the moment the game ends.
 - **Daily game list** from the public NHL Stats API, with your pinned teams surfaced first.
 - **Pre-game notifications** and background schedule refresh so the day's games are ready when you open the app.
 
