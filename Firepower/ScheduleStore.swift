@@ -25,6 +25,14 @@ final class ScheduleStore: ObservableObject {
         loadCache()
     }
 
+    #if DEBUG
+    convenience init(previewGames: [NHLGame]) {
+        self.init()
+        self.games = previewGames
+        self.lastFetchDate = Date()
+    }
+    #endif
+
     func refresh() async {
         isLoading = true
         fetchError = nil

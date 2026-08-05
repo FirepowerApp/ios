@@ -17,7 +17,7 @@ import WidgetKit
 //   - Score: .system(.largeTitle, .rounded, .heavy).monospacedDigit()
 //   - Clock/period centered between scores.
 //   - Scorer line (eventTeam) aligned left/right toward the scoring team.
-//   - WINNER pill + loser dimmed 60% on Final.
+//   - Loser score dimmed on Final; winner badge stays as tricode.
 //   - DI minimal shows pinnedTricode (fallback home).
 //   - Dynamic Type capped: .xLarge lock screen, .large DI (fixed heights).
 //   - VoiceOver: combined label on container.
@@ -26,7 +26,6 @@ struct FirepowerWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: FirepowerActivityAttributes.self) { context in
             LockScreenView(attributes: context.attributes, state: context.state, isStale: context.isStale)
-                .activityBackgroundTint(Color.black.opacity(0.85))
                 .activitySystemActionForegroundColor(.white)
                 .dynamicTypeSize(...DynamicTypeSize.xLarge)
         } dynamicIsland: { context in
@@ -91,6 +90,8 @@ private struct LockScreenView: View {
     let state: FirepowerActivityAttributes.ContentState
     let isStale: Bool
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         Group {
             if state.isEnded {
@@ -99,6 +100,14 @@ private struct LockScreenView: View {
                 inProgressView
             }
         }
+        // In light mode the system material shows through the semi-transparent tint, producing
+        // a white background on device. Explicit black fills the view so the preview canvas
+        // renders it correctly too (activityBackgroundTint is ignored by the canvas).
+        .background(colorScheme == .light ? Color.black : Color.clear)
+        .activityBackgroundTint(colorScheme == .light ? .black : Color.black.opacity(0.85))
+        // Force children to always render in dark mode so adaptive colors (.primary, .secondary)
+        // stay white on the black background in both light and dark system appearance.
+        .environment(\.colorScheme, .dark)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityDescription)
     }
@@ -140,8 +149,7 @@ private struct LockScreenView: View {
             // Home side
             HStack(spacing: 8) {
                 TeamBadge(tricode: attributes.homeTeam,
-                          homeTricode: attributes.homeTeam, awayTricode: attributes.awayTeam,
-                          isWinner: homeIsWinner, showWinnerPill: state.isEnded)
+                          homeTricode: attributes.homeTeam, awayTricode: attributes.awayTeam)
                 Text("\(state.homeScore)")
                     .font(.system(.largeTitle, design: .rounded, weight: .heavy).monospacedDigit())
                     .opacity(state.isEnded && awayIsWinner ? 0.55 : 1)
@@ -166,8 +174,7 @@ private struct LockScreenView: View {
                     .font(.system(.largeTitle, design: .rounded, weight: .heavy).monospacedDigit())
                     .opacity(state.isEnded && homeIsWinner ? 0.55 : 1)
                 TeamBadge(tricode: attributes.awayTeam,
-                          homeTricode: attributes.homeTeam, awayTricode: attributes.awayTeam,
-                          isWinner: awayIsWinner, showWinnerPill: state.isEnded)
+                          homeTricode: attributes.homeTeam, awayTricode: attributes.awayTeam)
             }
         }
         .padding(.horizontal, 16)
@@ -203,31 +210,55 @@ private struct TeamBadge: View {
     let tricode: String        // the team THIS badge represents
     let homeTricode: String    // real home team for the game
     let awayTricode: String    // real away team for the game
-    let isWinner: Bool
-    let showWinnerPill: Bool
 
     var body: some View {
         let home = NHLTeamColors.colors(for: homeTricode)
         let away = NHLTeamColors.colors(for: awayTricode)
 
-        // badgeColors() returns (home, away) with the dark-primary guard and the
-        // collision rule already applied to the away side. We just pick our side —
-        // always pass the real home/away order so the result is correct for both badges.
-        let (homeFill, awayFill) = NHLColor.badgeColors(
-            homePrimary: home?.primaryColor ?? "#888888", homeSecondary: home?.secondaryColor ?? "#FFFFFF",
-            awayPrimary: away?.primaryColor ?? "#888888", awaySecondary: away?.secondaryColor ?? "#FFFFFF"
+        // badgeColors() applies three-level collision resolution. Always pass real
+        // home/away order so the result is correct regardless of which badge renders.
+        let (homeFill, awayFill, homePrimaryText) = NHLColor.badgeColors(
+            homePrimary: home?.primaryColor ?? "#888888",
+            homeSecondary: home?.secondaryColor ?? "#FFFFFF",
+            awayPrimary: away?.primaryColor ?? "#888888",
+            awaySecondary: away?.secondaryColor ?? "#FFFFFF"
         )
         let isHome = (tricode == homeTricode)
         let fill = isHome ? homeFill : awayFill
+        let selfPrimary = (isHome ? home : away)?.primaryColor ?? "#FFFFFF"
         let selfSec = (isHome ? home : away)?.secondaryColor ?? "#FFFFFF"
-        let textColor = NHLColor.badgeTextColor(fill: fill, secondary: Color(hex: selfSec))
+
+        // homePrimaryText: both-fail white fallback — home fills white, primary is the
+        // text color (e.g. red "NJD" on white at 5.6:1). Secondary (black) would also
+        // pass contrast on white but loses team color.
+        //
+        // isInvertedHome: both-fail black fallback — home fills its dark secondary,
+        // primary is the text color (e.g. gold "BOS" on black at 12:1).
+        // TODO: derived from fill rather than an explicit badgeColors signal — correct
+        // for all current NHL teams, but if a team's primaryColor is changed to something
+        // bright while keeping a dark secondary, this could misfire on non-collision games.
+        // Consider extending badgeColors' return tuple with a homeUsesBlackFill flag.
+        let isInvertedHome = isHome
+            && NHLColor.needsVisibilityOutline(fill)
+            && !NHLColor.needsVisibilityOutline(Color(hex: selfPrimary))
+        let textColor: Color = {
+            if isHome && homePrimaryText { return Color(hex: selfPrimary) }
+            if isInvertedHome { return Color(hex: selfPrimary) }
+            return NHLColor.badgeTextColor(fill: fill, secondary: Color(hex: selfSec),
+                                           primary: Color(hex: selfPrimary))
+        }()
+        let addOutline = NHLColor.needsVisibilityOutline(fill)
 
         ZStack {
             RoundedRectangle(cornerRadius: 4)
                 .fill(fill)
                 .frame(width: 44, height: 26)
-
-            Text(showWinnerPill && isWinner ? "WIN" : tricode)
+            if addOutline {
+                RoundedRectangle(cornerRadius: 4)
+                    .strokeBorder(Color.white.opacity(0.45), lineWidth: 1.5)
+                    .frame(width: 44, height: 26)
+            }
+            Text(tricode)
                 .font(.system(size: 12, weight: .heavy))
                 .foregroundStyle(textColor)
         }
@@ -245,10 +276,19 @@ private struct XGSection: View {
     var body: some View {
         let h = NHLTeamColors.colors(for: homeTricode)
         let a = NHLTeamColors.colors(for: awayTricode)
-        let (homeColor, awayColor) = NHLColor.badgeColors(
-            homePrimary: h?.primaryColor ?? "#888888", homeSecondary: h?.secondaryColor ?? "#FFFFFF",
-            awayPrimary: a?.primaryColor ?? "#888888", awaySecondary: a?.secondaryColor ?? "#FFFFFF"
+        let (homeColor, awayColor, _) = NHLColor.badgeColors(
+            homePrimary: h?.primaryColor ?? "#888888",
+            homeSecondary: h?.secondaryColor ?? "#FFFFFF",
+            awayPrimary: a?.primaryColor ?? "#888888",
+            awaySecondary: a?.secondaryColor ?? "#FFFFFF"
         )
+
+        // Bar color always matches badge fill — homeColor and awayColor are already the
+        // resolved badge fills from badgeColors. needsVisibilityOutline handles the outline
+        // for both capsules, including the black home bar in the both-fail inversion case.
+        let homeNeedsOutline = NHLColor.needsVisibilityOutline(homeColor)
+        let awayNeedsOutline = NHLColor.needsVisibilityOutline(awayColor)
+
         // Each bar is proportional to that team's raw xG share: homeXG / total.
         // At 3–1 xG the home bar is 75% wide, away is 25%. At 0–0 (or any tie)
         // both bars are 50%. No saturation is possible since proportions sum to 1.
@@ -272,14 +312,26 @@ private struct XGSection: View {
             // Two stacked team-colored bars — home grows from the left, away from
             // the right — so the gap between their tips reads as the size of the
             // xG lead, and a swing toward one team visibly lengthens its bar while
-            // the other retracts.
+            // the other retracts. Dark-primary teams (navy etc.) get a white stroke
+            // so the capsule shape reads on the near-black background.
             GeometryReader { geo in
                 let w = geo.size.width
                 VStack(alignment: .leading, spacing: 3) {
-                    Capsule().fill(homeColor)
-                        .frame(width: max(w * homeFraction, 2), height: 7)
-                    Capsule().fill(awayColor)
-                        .frame(width: max(w * awayFraction, 2), height: 7)
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(homeColor)
+                        if homeNeedsOutline {
+                            Capsule().strokeBorder(Color.white.opacity(0.4), lineWidth: 1)
+                        }
+                    }
+                    .frame(width: max(w * homeFraction, 2), height: 7)
+
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(awayColor)
+                        if awayNeedsOutline {
+                            Capsule().strokeBorder(Color.white.opacity(0.4), lineWidth: 1)
+                        }
+                    }
+                    .frame(width: max(w * awayFraction, 2), height: 7)
                 }
             }
             .frame(height: 17)
@@ -395,20 +447,108 @@ private func teamLogo(_ tricode: String, size: CGFloat) -> some View {
     FirepowerActivityAttributes.ContentState.previewEmpty
 }
 
-#Preview("Lock — Collision (BOS vs PIT)", as: .content, using: FirepowerActivityAttributes(
-    sport: "nhl", homeTeam: "BOS", awayTeam: "PIT", gameID: "2025020002"
+
+#Preview("Lock — Dark primary (LAK home, SEA away)", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "LAK", awayTeam: "SEA", gameID: "2025020003"
 )) {
     FirepowerWidget()
 } contentStates: {
     FirepowerActivityAttributes.ContentState.preview
 }
 
-#Preview("Lock — Dark primary (LAK)", as: .content, using: FirepowerActivityAttributes(
-    sport: "nhl", homeTeam: "LAK", awayTeam: "SEA", gameID: "2025020003"
+// EDM navy badge + bar: both show navy fill with white outline (not orange swap).
+#Preview("Lock — EDM navy home", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "EDM", awayTeam: "VGK", gameID: "2025020020"
 )) {
     FirepowerWidget()
 } contentStates: {
     FirepowerActivityAttributes.ContentState.preview
+}
+
+// DET home vs CHI away: both red primaries collide. CHI secondary (#000000) too dark
+// (L2 fails) → bidirectional flip: DET uses its white secondary. CHI stays red.
+// DET: white badge + red text (5.6:1) + white bar. CHI: red badge + black text + red bar.
+#Preview("Lock — DET home vs CHI (bidirectional flip)", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "DET", awayTeam: "CHI", gameID: "2025020021"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.preview
+}
+
+// CHI home vs DET away: same collision, opposite sides. DET secondary (#FFFFFF) is
+// viable (L2) → DET flips to white. CHI home stays red.
+// CHI: red badge + black text + red bar. DET: white badge + red text (5.6:1) + white bar.
+#Preview("Lock — CHI home vs DET (bidirectional flip)", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "CHI", awayTeam: "DET", gameID: "2025020025"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.preview
+}
+
+// BOS home vs PIT away: both-fail (both secondaries #000000).
+// BOS: black badge + white outline + gold text + black bar (outlined).
+// PIT: gold badge + black text + gold bar.
+#Preview("Lock — BOS home vs PIT (both-fail)", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "BOS", awayTeam: "PIT", gameID: "2025020023"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.preview
+}
+
+// PIT home vs BOS away: same both-fail, opposite sides.
+// PIT: black badge + white outline + gold text + black bar (outlined).
+// BOS: gold badge + black text + gold bar.
+#Preview("Lock — PIT home vs BOS (both-fail)", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "PIT", awayTeam: "BOS", gameID: "2025020026"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.preview
+}
+
+// CHI home vs NJD away: both-fail, red primary passes on white (5.6:1).
+// CHI: white badge + red text + white bar. NJD: red badge + black text + red bar.
+#Preview("Lock — CHI home vs NJD (both-fail)", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "CHI", awayTeam: "NJD", gameID: "2025020024"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.preview
+}
+
+// NJD home vs CHI away: same both-fail, opposite sides.
+// NJD: white badge + red text + white bar. CHI: red badge + black text + red bar.
+#Preview("Lock — NJD home vs CHI (both-fail)", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "NJD", awayTeam: "CHI", gameID: "2025020027"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.preview
+}
+
+// WSH home vs CAR: WSH primary is navy (#041E42), which is below the visibility
+// threshold and gets a white outline — but stays navy, NOT swapped to its red
+// secondary (#C8102E). Verifies the old darkPrimaryGuard swap is gone.
+// WSH: navy badge + white outline + white text + navy bar (outlined).
+// CAR: red badge + white text + red bar.
+#Preview("Lock — WSH navy home vs CAR (no red swap)", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "WSH", awayTeam: "CAR", gameID: "2025020028"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.preview
+}
+
+// Final state: loser score dims; both badges still show their tricode (no WIN pill).
+#Preview("Lock — Final, no WIN badge (EDM wins)", as: .content, using: FirepowerActivityAttributes(
+    sport: "nhl", homeTeam: "EDM", awayTeam: "VGK", gameID: "2025020022"
+)) {
+    FirepowerWidget()
+} contentStates: {
+    FirepowerActivityAttributes.ContentState.previewEnded
 }
 
 #Preview("DI — Expanded", as: .dynamicIsland(.expanded), using: FirepowerActivityAttributes(
