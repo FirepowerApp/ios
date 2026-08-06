@@ -22,6 +22,11 @@ import WidgetKit
 //   - Dynamic Type capped: .xLarge lock screen, .large DI (fixed heights).
 //   - VoiceOver: combined label on container.
 
+enum IslandRegion {
+    case leading
+    case trailing
+}
+
 struct FirepowerWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: FirepowerActivityAttributes.self) { context in
@@ -33,21 +38,27 @@ struct FirepowerWidget: Widget {
                 DynamicIslandExpandedRegion(.leading) {
                     let winner = context.state.winnerTricode(
                         homeTeam: context.attributes.homeTeam, awayTeam: context.attributes.awayTeam)
+                    @ScaledMetric(relativeTo: .title)
+                    var imageSize: CGFloat = 32
                     teamSide(
                         tricode: context.attributes.homeTeam,
                         score: context.state.homeScore,
-                        logoSize: 24,
-                        isLoser: winner == context.attributes.awayTeam
+                        logoSize: imageSize,
+                        isLoser: winner == context.attributes.awayTeam,
+                        position: IslandRegion.leading
                     )
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     let winner = context.state.winnerTricode(
                         homeTeam: context.attributes.homeTeam, awayTeam: context.attributes.awayTeam)
+                    @ScaledMetric(relativeTo: .title)
+                    var imageSize: CGFloat = 32
                     teamSide(
                         tricode: context.attributes.awayTeam,
                         score: context.state.awayScore,
-                        logoSize: 24,
-                        isLoser: winner == context.attributes.homeTeam
+                        logoSize: imageSize,
+                        isLoser: winner == context.attributes.homeTeam,
+                        position: IslandRegion.trailing
                     )
                 }
                 DynamicIslandExpandedRegion(.center) {
@@ -64,20 +75,20 @@ struct FirepowerWidget: Widget {
                     }
                 }
             } compactLeading: {
-                HStack(spacing: 3) {
-                    teamLogo(context.attributes.homeTeam, size: 14)
+                HStack(spacing: 2) {
+                    teamLogo(context.attributes.homeTeam, size: 22)
                     Text("\(context.state.homeScore)")
                         .font(.caption.weight(.semibold).monospacedDigit())
                 }
             } compactTrailing: {
-                HStack(spacing: 3) {
+                HStack(spacing: 2) {
                     Text("\(context.state.awayScore)")
                         .font(.caption.weight(.semibold).monospacedDigit())
-                    teamLogo(context.attributes.awayTeam, size: 14)
+                    teamLogo(context.attributes.awayTeam, size: 22)
                 }
             } minimal: {
                 let shown = context.attributes.pinnedTricode ?? context.attributes.homeTeam
-                teamLogo(shown, size: 16)
+                teamLogo(shown, size: 28)
             }
         }
     }
@@ -347,13 +358,23 @@ private func teamSide(
     tricode: String,
     score: Int,
     logoSize: CGFloat,
-    isLoser: Bool
+    isLoser: Bool,
+    position: IslandRegion
 ) -> some View {
-    HStack(spacing: 4) {
-        teamLogo(tricode, size: logoSize)
-        Text("\(score)")
-            .font(.title.weight(.bold).monospacedDigit())
-            .opacity(isLoser ? 0.55 : 1)
+    HStack(spacing: 1) {
+        if (position == IslandRegion.leading) {
+            teamLogo(tricode, size: logoSize)
+            Text("\(score)")
+                .font(.title.weight(.bold).monospacedDigit())
+                .opacity(isLoser ? 0.55 : 1)
+        }
+        else if position == IslandRegion.trailing {
+            Text("\(score)")
+                .font(.title.weight(.bold).monospacedDigit())
+                .opacity(isLoser ? 0.55 : 1)
+            teamLogo(tricode, size: logoSize)
+        }
+            
     }
 }
 

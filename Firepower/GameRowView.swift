@@ -58,12 +58,7 @@ struct GameRowView: View {
             Image(tricode.lowercased())
                 .resizable()
                 .scaledToFit()
-                .frame(width: 22, height: 22)
-                .background(
-                    Circle()
-                        .fill(Color(.tertiarySystemGroupedBackground))
-                        .frame(width: 26, height: 26)
-                )
+                .frame(width: 32, height: 32)
 
             Text(tricode)
                 .font(.system(.body, design: .rounded).weight(.semibold))
