@@ -9,7 +9,7 @@ Firepower is an iOS 18 app built around ActivityKit Live Activities. Pin your te
 - **Live Activity per game** across all five surfaces: lock screen, Dynamic Island compact, expanded, and minimal.
 - **Track several games at once** — start Live Activities for up to five games in parallel (the current iOS cap); Track disables once you're at the limit and re-enables when you stop one.
 - **Team-colored design.** Each game uses the two teams' brand colors. A glance tells you who's playing before you read a single digit.
-- **Team logos** in the daily game list and every Dynamic Island surface. If a logo asset isn't available, it falls back to a team-colored tricode badge — same design language as the lock screen — so the UI never shows a broken image.
+- **Team logos and names** in the daily game list, plus logos on every Dynamic Island surface. If a logo asset isn't available, it falls back to a team-colored tricode badge — same design language as the lock screen — so the UI never shows a broken image.
 - **xG as a headline metric.** Bold expected-goals values plus a proportional team-colored bar.
 - **Track opens 4 hours before puck drop.** Once the window opens, the Track button shows the scheduled start time (e.g. "6:00 PM") until the game begins, then flips to "Pregame" and finally to the live clock and xG on the first update. Earlier than that, the button shows when tracking opens instead of starting the activity too soon.
 - **Stays around after the final horn.** When the game ends, the Live Activity switches to a "Final" score card — the winner's badge keeps showing its tricode, and the loser's score dims — and stays on your lock screen for about 4 hours, no need to catch it the moment the game ends.
