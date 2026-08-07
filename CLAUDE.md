@@ -83,7 +83,28 @@ Only the dynamic `ContentState` crosses the wire. The iOS `ContentState` (in `Fi
 - `Firepower/` — main app target (TodayView, LiveActivityManager, FirepowerApp, NHLScheduleClient, OffseasonReplay)
 - `Firepower/LiveActivityManager.swift` — Live Activity lifecycle. `rehydrate()`/`rehydratePlan` reconcile tracked state against the OS's running activities on every foreground; `endIfFinal` is the only place in the app that ends a finished game's activity (see the wire-format section above). `TodayView`'s `reconcile()` calls `rehydrate()` on cold launch and every scenePhase transition to `.active`.
 - `Firepower/OffseasonReplay.swift` — offseason-only date remapping: in the June 22–Sept 30 window, maps today onto the real 2025-26 date and reshapes fetched games onto today (FUT, scores cleared, DST-aware). Anchors mirror the emulator's `cmd/buildschedule` flags; a pinned test in `FirepowerTests` flags drift.
-- `FirepowerShared/` — local Swift package shared by app and widget (FirepowerActivityAttributes, NHLColor, NHLTeamColors)
+- `FirepowerShared/` — local Swift package shared by app and widget (FirepowerActivityAttributes, NHLColor, NHLTeamColors, TeamTricodeBadge, DebugFlags)
 - `FirepowerActivityKit/` — widget extension (FirepowerWidget, FirepowerActivityKitBundle)
 - `FirepowerShared/Sources/FirepowerShared/FirepowerActivityAttributes.swift` — single source of truth for wire format; both targets import `FirepowerShared`
 - `DESIGN.md` — design system for the Live Activity + app (team-color rules, typography, xG bar, accessibility floor)
+
+## Team logos: two build configurations
+
+`Assets.xcassets` in both the app and widget targets vendors the real NHL team logo SVGs
+(`{team}.imageset`) for local development, but they're licensed league trademarks, not cleared
+for commercial redistribution. `Firepower/GameRowView.swift` and `FirepowerActivityKit/FirepowerWidget.swift`
+both render a logo only if `UIImage(named:)` finds the asset **and** two build-time gates are
+clear; otherwise they fall back to `FirepowerShared/Sources/FirepowerShared/TeamTricodeBadge.swift`
+— a team-colored badge that reuses the lock screen's `NHLColor.badgeColors` collision-resolution
+logic so it reads as the same design language, not a broken-image placeholder.
+
+- **`DebugFlags.forceTricodeFallback`** (`FirepowerShared/Sources/FirepowerShared/DebugFlags.swift`) — a DEBUG-only
+  dev toggle to preview the fallback in the simulator. Hardcoded `false` outside `#if DEBUG`, so it
+  cannot affect a Release build regardless of its value.
+- **`Release-TricodeOnly`** build configuration (Firepower project + all 4 targets) sets
+  `SWIFT_ACTIVE_COMPILATION_CONDITIONS = TRICODE_ONLY_BUILD` on the `Firepower` and
+  `FirepowerActivityKitExtension` targets. The **`Firepower-TricodeOnly`** scheme's Run/Profile/Archive
+  actions build against it. Archiving from that scheme is the actual mechanism for shipping a
+  compliance-safe TestFlight/App Store build without the licensed logo assets — pick the scheme,
+  no source changes needed. The normal `Firepower` scheme / `Release` configuration ship real logos
+  and are untouched by any of this.
