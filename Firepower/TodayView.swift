@@ -261,6 +261,10 @@ struct TodayView: View {
 
 // Long-list preview: two pinned teams + 13 other games, enough rows to scroll
 // past both section headers and verify they scroll off rather than floating.
+// Depends on ScheduleStore(previewGames:) and TodayView(previewStore:), both
+// #if DEBUG-only — the whole block must be gated the same way, or it fails to
+// compile in Release (previews aren't automatically excluded from compilation).
+#if DEBUG
 #Preview("Long list — scroll header test") {
     let games: [NHLGame] = [
         // Pinned
@@ -285,5 +289,6 @@ struct TodayView: View {
     // NOTE: UserPreferences.shared persists to the real UserDefaults.standard —
     // running this preview in Xcode overwrites your actual pinned teams on device.
     UserPreferences.shared.pinnedTeams = ["BOS", "EDM"]
-    return TodayView(previewStore: store)
+    TodayView(previewStore: store)
 }
+#endif

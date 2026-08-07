@@ -2,6 +2,16 @@ import ActivityKit
 import FirepowerShared
 import SwiftUI
 
+// Set by the "Release-TricodeOnly" build configuration's Active Compilation
+// Condition (Firepower target) — an archive built from that configuration ships
+// with team-color badges everywhere instead of the licensed logo assets. See
+// Firepower.xcodeproj build settings and the Firepower-TricodeOnly scheme.
+#if TRICODE_ONLY_BUILD
+private let tricodeOnlyBuild = true
+#else
+private let tricodeOnlyBuild = false
+#endif
+
 struct GameRowView: View {
 
     let game: NHLGame
@@ -78,7 +88,7 @@ struct GameRowView: View {
     @ViewBuilder
     private func teamImage(tricode: String) -> some View {
         let name = tricode.lowercased()
-        if !forceLogoFallback, !DebugFlags.forceTricodeFallback, UIImage(named: name) != nil {
+        if !forceLogoFallback, !DebugFlags.forceTricodeFallback, !tricodeOnlyBuild, UIImage(named: name) != nil {
             Image(name)
                 .resizable()
                 .scaledToFit()

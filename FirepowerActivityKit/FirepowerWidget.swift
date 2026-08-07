@@ -3,6 +3,17 @@ import FirepowerShared
 import SwiftUI
 import WidgetKit
 
+// Set by the "Release-TricodeOnly" build configuration's Active Compilation
+// Condition (FirepowerActivityKitExtension target) — an archive built from that
+// configuration ships with team-color badges everywhere instead of the licensed
+// logo assets. See Firepower.xcodeproj build settings and the
+// Firepower-TricodeOnly scheme.
+#if TRICODE_ONLY_BUILD
+private let tricodeOnlyBuild = true
+#else
+private let tricodeOnlyBuild = false
+#endif
+
 // FirepowerWidget — Live Activity views for all 5 render surfaces.
 //
 // Surfaces:
@@ -437,7 +448,7 @@ private func teamLogo(
     forceFallback: Bool = false
 ) -> some View {
     let name = tricode.lowercased()
-    if !forceFallback, !DebugFlags.forceTricodeFallback, UIImage(named: name) != nil {
+    if !forceFallback, !DebugFlags.forceTricodeFallback, !tricodeOnlyBuild, UIImage(named: name) != nil {
         Image(name)
             .resizable()
             .scaledToFit()
