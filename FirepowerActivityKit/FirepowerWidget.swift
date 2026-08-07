@@ -38,27 +38,25 @@ struct FirepowerWidget: Widget {
                 DynamicIslandExpandedRegion(.leading) {
                     let winner = context.state.winnerTricode(
                         homeTeam: context.attributes.homeTeam, awayTeam: context.attributes.awayTeam)
-                    @ScaledMetric(relativeTo: .title)
-                    var imageSize: CGFloat = 32
-                    teamSide(
+                    TeamSideView(
                         tricode: context.attributes.homeTeam,
+                        homeTricode: context.attributes.homeTeam,
+                        awayTricode: context.attributes.awayTeam,
                         score: context.state.homeScore,
-                        logoSize: imageSize,
                         isLoser: winner == context.attributes.awayTeam,
-                        position: IslandRegion.leading
+                        position: .leading
                     )
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     let winner = context.state.winnerTricode(
                         homeTeam: context.attributes.homeTeam, awayTeam: context.attributes.awayTeam)
-                    @ScaledMetric(relativeTo: .title)
-                    var imageSize: CGFloat = 32
-                    teamSide(
+                    TeamSideView(
                         tricode: context.attributes.awayTeam,
+                        homeTricode: context.attributes.homeTeam,
+                        awayTricode: context.attributes.awayTeam,
                         score: context.state.awayScore,
-                        logoSize: imageSize,
                         isLoser: winner == context.attributes.homeTeam,
-                        position: IslandRegion.trailing
+                        position: .trailing
                     )
                 }
                 DynamicIslandExpandedRegion(.center) {
@@ -76,7 +74,9 @@ struct FirepowerWidget: Widget {
                 }
             } compactLeading: {
                 HStack(spacing: 2) {
-                    teamLogo(context.attributes.homeTeam, size: 22)
+                    teamLogo(context.attributes.homeTeam,
+                             homeTricode: context.attributes.homeTeam,
+                             awayTricode: context.attributes.awayTeam, size: 22)
                     Text("\(context.state.homeScore)")
                         .font(.caption.weight(.semibold).monospacedDigit())
                 }
@@ -84,11 +84,15 @@ struct FirepowerWidget: Widget {
                 HStack(spacing: 2) {
                     Text("\(context.state.awayScore)")
                         .font(.caption.weight(.semibold).monospacedDigit())
-                    teamLogo(context.attributes.awayTeam, size: 22)
+                    teamLogo(context.attributes.awayTeam,
+                             homeTricode: context.attributes.homeTeam,
+                             awayTricode: context.attributes.awayTeam, size: 22)
                 }
             } minimal: {
                 let shown = context.attributes.pinnedTricode ?? context.attributes.homeTeam
-                teamLogo(shown, size: 28)
+                teamLogo(shown,
+                         homeTricode: context.attributes.homeTeam,
+                         awayTricode: context.attributes.awayTeam, size: 28)
             }
         }
     }
@@ -353,28 +357,38 @@ private struct XGSection: View {
 
 // MARK: - Shared helpers
 
-@ViewBuilder
-private func teamSide(
-    tricode: String,
-    score: Int,
-    logoSize: CGFloat,
-    isLoser: Bool,
-    position: IslandRegion
-) -> some View {
-    HStack(spacing: 1) {
-        if (position == IslandRegion.leading) {
-            teamLogo(tricode, size: logoSize)
-            Text("\(score)")
-                .font(.title.weight(.bold).monospacedDigit())
-                .opacity(isLoser ? 0.55 : 1)
+private struct TeamSideView: View {
+    let tricode: String
+    let homeTricode: String
+    let awayTricode: String
+    let score: Int
+    let isLoser: Bool
+    let position: IslandRegion
+    var forceFallback: Bool = false
+
+    // Stored property wrapper (not a local var in a closure) so SwiftUI
+    // actually injects the environment and rescales with Dynamic Type.
+    @ScaledMetric(relativeTo: .title) private var logoSize: CGFloat = 32
+
+    var body: some View {
+        HStack(spacing: 1) {
+            switch position {
+            case .leading:
+                teamLogo(tricode, homeTricode: homeTricode, awayTricode: awayTricode,
+                         size: logoSize, forceFallback: forceFallback)
+                scoreText
+            case .trailing:
+                scoreText
+                teamLogo(tricode, homeTricode: homeTricode, awayTricode: awayTricode,
+                         size: logoSize, forceFallback: forceFallback)
+            }
         }
-        else if position == IslandRegion.trailing {
-            Text("\(score)")
-                .font(.title.weight(.bold).monospacedDigit())
-                .opacity(isLoser ? 0.55 : 1)
-            teamLogo(tricode, size: logoSize)
-        }
-            
+    }
+
+    private var scoreText: some View {
+        Text("\(score)")
+            .font(.title.weight(.bold).monospacedDigit())
+            .opacity(isLoser ? 0.55 : 1)
     }
 }
 
@@ -415,16 +429,21 @@ private func eventLine(
 }
 
 @ViewBuilder
-private func teamLogo(_ tricode: String, size: CGFloat) -> some View {
+private func teamLogo(
+    _ tricode: String,
+    homeTricode: String,
+    awayTricode: String,
+    size: CGFloat,
+    forceFallback: Bool = false
+) -> some View {
     let name = tricode.lowercased()
-    if let _ = UIImage(named: name) {
+    if !forceFallback, !DebugFlags.forceTricodeFallback, UIImage(named: name) != nil {
         Image(name)
             .resizable()
             .scaledToFit()
             .frame(width: size, height: size)
     } else {
-        Text(tricode)
-            .font(.system(size: size * 0.6, weight: .bold, design: .rounded))
+        TeamTricodeBadge(tricode: tricode, homeTricode: homeTricode, awayTricode: awayTricode, size: size)
     }
 }
 
@@ -639,4 +658,87 @@ private func teamLogo(_ tricode: String, size: CGFloat) -> some View {
     FirepowerWidget()
 } contentStates: {
     FirepowerActivityAttributes.ContentState.previewXGLead
+}
+
+// MARK: - Fallback badge previews (TeamLogos.xcassets excluded)
+//
+// The ActivityKit preview macro (`as: .dynamicIsland(...)`) always renders through
+// the real FirepowerWidget, which has no seam for injecting forceFallback. These
+// previews instead compose the same private helpers (teamLogo, TeamSideView) the
+// real widget uses, laid out to match each surface exactly, with forceFallback: true
+// to simulate a build where the licensed logo assets were stripped at build time.
+
+#Preview("DI Compact — fallback badges (logos excluded)") {
+    ZStack {
+        Capsule().fill(Color.black)
+        HStack {
+            HStack(spacing: 2) {
+                teamLogo("BOS", homeTricode: "BOS", awayTricode: "NYR", size: 22, forceFallback: true)
+                Text("2").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.white)
+            }
+            Spacer()
+            HStack(spacing: 2) {
+                Text("1").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.white)
+                teamLogo("NYR", homeTricode: "BOS", awayTricode: "NYR", size: 22, forceFallback: true)
+            }
+        }
+        .padding(.horizontal, 20)
+    }
+    .frame(width: 200, height: 37)
+    .padding()
+    .background(Color(.systemGray6))
+}
+
+// Known collision pair (BOS/PIT gold) at compact size — verifies the fallback badge's
+// collision resolution still reads correctly this small.
+#Preview("DI Compact — collision (BOS/PIT gold, logos excluded)") {
+    ZStack {
+        Capsule().fill(Color.black)
+        HStack {
+            HStack(spacing: 2) {
+                teamLogo("BOS", homeTricode: "BOS", awayTricode: "PIT", size: 22, forceFallback: true)
+                Text("3").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.white)
+            }
+            Spacer()
+            HStack(spacing: 2) {
+                Text("2").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.white)
+                teamLogo("PIT", homeTricode: "BOS", awayTricode: "PIT", size: 22, forceFallback: true)
+            }
+        }
+        .padding(.horizontal, 20)
+    }
+    .frame(width: 200, height: 37)
+    .padding()
+    .background(Color(.systemGray6))
+}
+
+#Preview("DI Minimal — fallback badge (logos excluded)") {
+    ZStack {
+        Circle().fill(Color.black)
+        teamLogo("BOS", homeTricode: "BOS", awayTricode: "NYR", size: 28, forceFallback: true)
+    }
+    .frame(width: 44, height: 44)
+    .padding()
+    .background(Color(.systemGray6))
+}
+
+#Preview("DI Expanded — fallback badges (logos excluded)") {
+    ZStack {
+        Color.black
+        HStack {
+            TeamSideView(tricode: "BOS", homeTricode: "BOS", awayTricode: "NYR",
+                         score: 2, isLoser: false, position: .leading, forceFallback: true)
+            Spacer()
+            Text("14:32")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+            Spacer()
+            TeamSideView(tricode: "NYR", homeTricode: "BOS", awayTricode: "NYR",
+                         score: 1, isLoser: true, position: .trailing, forceFallback: true)
+        }
+        .padding(.horizontal, 20)
+    }
+    .frame(height: 90)
+    .padding()
+    .background(Color(.systemGray6))
 }
