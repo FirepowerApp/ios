@@ -11,6 +11,9 @@ import Foundation
 struct NHLTeam: Identifiable, Equatable {
     let tricode: String
     let name: String
+    let shortName: String       // mascot only, e.g. "Penguins" (name minus city) — used
+                                 // in the game list so the row reads "<logo> Penguins"
+                                 // instead of repeating the tricode next to its own badge
     let primaryColor: String    // hex, full-bleed background
     let secondaryColor: String  // hex, text + button tint
 
@@ -114,39 +117,39 @@ private extension NHLTeam {
 extension NHLTeam {
 
     static let all: [NHLTeam] = [
-        //              tricode   name                          primary      secondary
-        NHLTeam(tricode: "ANA", name: "Anaheim Ducks",          primaryColor: "#F47A38", secondaryColor: "#B9975B", channelId: channelId(for: "ANA")),
-        NHLTeam(tricode: "BOS", name: "Boston Bruins",           primaryColor: "#FFB81C", secondaryColor: "#000000", channelId: channelId(for: "BOS")),
-        NHLTeam(tricode: "BUF", name: "Buffalo Sabres",          primaryColor: "#003087", secondaryColor: "#FCB514", channelId: channelId(for: "BUF")),
-        NHLTeam(tricode: "CGY", name: "Calgary Flames",          primaryColor: "#C8102E", secondaryColor: "#F1BE48", channelId: channelId(for: "CGY")),
-        NHLTeam(tricode: "CAR", name: "Carolina Hurricanes",     primaryColor: "#CC0000", secondaryColor: "#FFFFFF", channelId: channelId(for: "CAR")),
-        NHLTeam(tricode: "CHI", name: "Chicago Blackhawks",      primaryColor: "#CF0A2C", secondaryColor: "#000000", channelId: channelId(for: "CHI")),
-        NHLTeam(tricode: "COL", name: "Colorado Avalanche",      primaryColor: "#6F263D", secondaryColor: "#236192", channelId: channelId(for: "COL")),
-        NHLTeam(tricode: "CBJ", name: "Columbus Blue Jackets",   primaryColor: "#002654", secondaryColor: "#CE1126", channelId: channelId(for: "CBJ")),
-        NHLTeam(tricode: "DAL", name: "Dallas Stars",            primaryColor: "#006847", secondaryColor: "#FFFFFF", channelId: channelId(for: "DAL")),
-        NHLTeam(tricode: "DET", name: "Detroit Red Wings",       primaryColor: "#CE1126", secondaryColor: "#FFFFFF", channelId: channelId(for: "DET")),
-        NHLTeam(tricode: "EDM", name: "Edmonton Oilers",         primaryColor: "#041E42", secondaryColor: "#FC4C02", channelId: channelId(for: "EDM")),
-        NHLTeam(tricode: "FLA", name: "Florida Panthers",        primaryColor: "#041E42", secondaryColor: "#C8102E", channelId: channelId(for: "FLA")),
-        NHLTeam(tricode: "LAK", name: "Los Angeles Kings",       primaryColor: "#111111", secondaryColor: "#A2AAAD", channelId: channelId(for: "LAK")),
-        NHLTeam(tricode: "MIN", name: "Minnesota Wild",          primaryColor: "#154734", secondaryColor: "#DDCBA4", channelId: channelId(for: "MIN")),
-        NHLTeam(tricode: "MTL", name: "Montréal Canadiens",      primaryColor: "#AF1E2D", secondaryColor: "#192168", channelId: channelId(for: "MTL")),
-        NHLTeam(tricode: "NSH", name: "Nashville Predators",     primaryColor: "#041E42", secondaryColor: "#FFB81C", channelId: channelId(for: "NSH")),
-        NHLTeam(tricode: "NJD", name: "New Jersey Devils",       primaryColor: "#CE1126", secondaryColor: "#000000", channelId: channelId(for: "NJD")),
-        NHLTeam(tricode: "NYI", name: "New York Islanders",      primaryColor: "#003087", secondaryColor: "#FC4C02", channelId: channelId(for: "NYI")),
-        NHLTeam(tricode: "NYR", name: "New York Rangers",        primaryColor: "#0038A8", secondaryColor: "#CE1126", channelId: channelId(for: "NYR")),
-        NHLTeam(tricode: "OTT", name: "Ottawa Senators",         primaryColor: "#C52032", secondaryColor: "#C69214", channelId: channelId(for: "OTT")),
-        NHLTeam(tricode: "PHI", name: "Philadelphia Flyers",     primaryColor: "#F74902", secondaryColor: "#000000", channelId: channelId(for: "PHI")),
-        NHLTeam(tricode: "PIT", name: "Pittsburgh Penguins",     primaryColor: "#FCB514", secondaryColor: "#000000", channelId: channelId(for: "PIT")),
-        NHLTeam(tricode: "SJS", name: "San Jose Sharks",         primaryColor: "#006D75", secondaryColor: "#FFFFFF", channelId: channelId(for: "SJS")),
-        NHLTeam(tricode: "SEA", name: "Seattle Kraken",          primaryColor: "#001628", secondaryColor: "#99D9D9", channelId: channelId(for: "SEA")),
-        NHLTeam(tricode: "STL", name: "St. Louis Blues",         primaryColor: "#002F87", secondaryColor: "#FCB514", channelId: channelId(for: "STL")),
-        NHLTeam(tricode: "TBL", name: "Tampa Bay Lightning",     primaryColor: "#002868", secondaryColor: "#FFFFFF", channelId: channelId(for: "TBL")),
-        NHLTeam(tricode: "TOR", name: "Toronto Maple Leafs",     primaryColor: "#003E7E", secondaryColor: "#FFFFFF", channelId: channelId(for: "TOR")),
-        NHLTeam(tricode: "UTA", name: "Utah Hockey Club",        primaryColor: "#1F3765", secondaryColor: "#6CACE4", channelId: channelId(for: "UTA")),
-        NHLTeam(tricode: "VAN", name: "Vancouver Canucks",       primaryColor: "#00205B", secondaryColor: "#00843D", channelId: channelId(for: "VAN")),
-        NHLTeam(tricode: "VGK", name: "Vegas Golden Knights",    primaryColor: "#333F48", secondaryColor: "#B4975A", channelId: channelId(for: "VGK")),
-        NHLTeam(tricode: "WSH", name: "Washington Capitals",     primaryColor: "#041E42", secondaryColor: "#C8102E", channelId: channelId(for: "WSH")),
-        NHLTeam(tricode: "WPG", name: "Winnipeg Jets",           primaryColor: "#041E42", secondaryColor: "#AC162C", channelId: channelId(for: "WPG")),
+        //              tricode   name                          shortName            primary      secondary
+        NHLTeam(tricode: "ANA", name: "Anaheim Ducks",          shortName: "Ducks",          primaryColor: "#F47A38", secondaryColor: "#B9975B", channelId: channelId(for: "ANA")),
+        NHLTeam(tricode: "BOS", name: "Boston Bruins",           shortName: "Bruins",         primaryColor: "#FFB81C", secondaryColor: "#000000", channelId: channelId(for: "BOS")),
+        NHLTeam(tricode: "BUF", name: "Buffalo Sabres",          shortName: "Sabres",         primaryColor: "#003087", secondaryColor: "#FCB514", channelId: channelId(for: "BUF")),
+        NHLTeam(tricode: "CGY", name: "Calgary Flames",          shortName: "Flames",         primaryColor: "#C8102E", secondaryColor: "#F1BE48", channelId: channelId(for: "CGY")),
+        NHLTeam(tricode: "CAR", name: "Carolina Hurricanes",     shortName: "Hurricanes",     primaryColor: "#CC0000", secondaryColor: "#FFFFFF", channelId: channelId(for: "CAR")),
+        NHLTeam(tricode: "CHI", name: "Chicago Blackhawks",      shortName: "Blackhawks",     primaryColor: "#CF0A2C", secondaryColor: "#000000", channelId: channelId(for: "CHI")),
+        NHLTeam(tricode: "COL", name: "Colorado Avalanche",      shortName: "Avalanche",      primaryColor: "#6F263D", secondaryColor: "#236192", channelId: channelId(for: "COL")),
+        NHLTeam(tricode: "CBJ", name: "Columbus Blue Jackets",   shortName: "Blue Jackets",   primaryColor: "#002654", secondaryColor: "#CE1126", channelId: channelId(for: "CBJ")),
+        NHLTeam(tricode: "DAL", name: "Dallas Stars",            shortName: "Stars",          primaryColor: "#006847", secondaryColor: "#FFFFFF", channelId: channelId(for: "DAL")),
+        NHLTeam(tricode: "DET", name: "Detroit Red Wings",       shortName: "Red Wings",      primaryColor: "#CE1126", secondaryColor: "#FFFFFF", channelId: channelId(for: "DET")),
+        NHLTeam(tricode: "EDM", name: "Edmonton Oilers",         shortName: "Oilers",         primaryColor: "#041E42", secondaryColor: "#FC4C02", channelId: channelId(for: "EDM")),
+        NHLTeam(tricode: "FLA", name: "Florida Panthers",        shortName: "Panthers",       primaryColor: "#041E42", secondaryColor: "#C8102E", channelId: channelId(for: "FLA")),
+        NHLTeam(tricode: "LAK", name: "Los Angeles Kings",       shortName: "Kings",          primaryColor: "#111111", secondaryColor: "#A2AAAD", channelId: channelId(for: "LAK")),
+        NHLTeam(tricode: "MIN", name: "Minnesota Wild",          shortName: "Wild",           primaryColor: "#154734", secondaryColor: "#DDCBA4", channelId: channelId(for: "MIN")),
+        NHLTeam(tricode: "MTL", name: "Montréal Canadiens",      shortName: "Canadiens",      primaryColor: "#AF1E2D", secondaryColor: "#192168", channelId: channelId(for: "MTL")),
+        NHLTeam(tricode: "NSH", name: "Nashville Predators",     shortName: "Predators",      primaryColor: "#041E42", secondaryColor: "#FFB81C", channelId: channelId(for: "NSH")),
+        NHLTeam(tricode: "NJD", name: "New Jersey Devils",       shortName: "Devils",         primaryColor: "#CE1126", secondaryColor: "#000000", channelId: channelId(for: "NJD")),
+        NHLTeam(tricode: "NYI", name: "New York Islanders",      shortName: "Islanders",      primaryColor: "#003087", secondaryColor: "#FC4C02", channelId: channelId(for: "NYI")),
+        NHLTeam(tricode: "NYR", name: "New York Rangers",        shortName: "Rangers",        primaryColor: "#0038A8", secondaryColor: "#CE1126", channelId: channelId(for: "NYR")),
+        NHLTeam(tricode: "OTT", name: "Ottawa Senators",         shortName: "Senators",       primaryColor: "#C52032", secondaryColor: "#C69214", channelId: channelId(for: "OTT")),
+        NHLTeam(tricode: "PHI", name: "Philadelphia Flyers",     shortName: "Flyers",         primaryColor: "#F74902", secondaryColor: "#000000", channelId: channelId(for: "PHI")),
+        NHLTeam(tricode: "PIT", name: "Pittsburgh Penguins",     shortName: "Penguins",       primaryColor: "#FCB514", secondaryColor: "#000000", channelId: channelId(for: "PIT")),
+        NHLTeam(tricode: "SJS", name: "San Jose Sharks",         shortName: "Sharks",         primaryColor: "#006D75", secondaryColor: "#FFFFFF", channelId: channelId(for: "SJS")),
+        NHLTeam(tricode: "SEA", name: "Seattle Kraken",          shortName: "Kraken",         primaryColor: "#001628", secondaryColor: "#99D9D9", channelId: channelId(for: "SEA")),
+        NHLTeam(tricode: "STL", name: "St. Louis Blues",         shortName: "Blues",          primaryColor: "#002F87", secondaryColor: "#FCB514", channelId: channelId(for: "STL")),
+        NHLTeam(tricode: "TBL", name: "Tampa Bay Lightning",     shortName: "Lightning",      primaryColor: "#002868", secondaryColor: "#FFFFFF", channelId: channelId(for: "TBL")),
+        NHLTeam(tricode: "TOR", name: "Toronto Maple Leafs",     shortName: "Maple Leafs",    primaryColor: "#003E7E", secondaryColor: "#FFFFFF", channelId: channelId(for: "TOR")),
+        NHLTeam(tricode: "UTA", name: "Utah Mammoth",        shortName: "Mammoth",    primaryColor: "#1F3765", secondaryColor: "#6CACE4", channelId: channelId(for: "UTA")),
+        NHLTeam(tricode: "VAN", name: "Vancouver Canucks",       shortName: "Canucks",        primaryColor: "#00205B", secondaryColor: "#00843D", channelId: channelId(for: "VAN")),
+        NHLTeam(tricode: "VGK", name: "Vegas Golden Knights",    shortName: "Golden Knights", primaryColor: "#333F48", secondaryColor: "#B4975A", channelId: channelId(for: "VGK")),
+        NHLTeam(tricode: "WSH", name: "Washington Capitals",     shortName: "Capitals",       primaryColor: "#041E42", secondaryColor: "#C8102E", channelId: channelId(for: "WSH")),
+        NHLTeam(tricode: "WPG", name: "Winnipeg Jets",           shortName: "Jets",           primaryColor: "#041E42", secondaryColor: "#AC162C", channelId: channelId(for: "WPG")),
     ]
 
     static func team(for tricode: String) -> NHLTeam? {

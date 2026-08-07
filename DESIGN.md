@@ -64,7 +64,8 @@ Sensitivity note: because the split is half-width per 1.0 of xG, a gap of ≥ 1.
 
 ## Iconography
 
-- Team logos: PNG assets in `Assets.xcassets`, lowercase tricode (`bos.png`). Resolved via `teamLogo(_:size:)` helper. Falls back to tricode text if asset missing. Used in Dynamic Island (compact/minimal/expanded); the lock screen uses team-colored badges instead.
+- Team logos: SVG imagesets in `Assets.xcassets` (light/dark variants), lowercase tricode (`bos.imageset`). Resolved via `teamLogo(_:homeTricode:awayTricode:size:)` (widget) / `GameRowView.teamImage` (app). Falls back to `TeamTricodeBadge` — a team-colored tricode badge reusing the lock screen's collision-resolution rules — if the asset is missing, not plain text. Used in the daily game list and every Dynamic Island surface (compact/minimal/expanded); the lock screen uses its own fixed-size team-colored badge (`TeamBadge`) instead of a logo.
+- The fallback isn't just a missing-asset safeguard: a dedicated `Release-TricodeOnly` build configuration/scheme ships the badge everywhere on purpose, since the logo assets are licensed NHL trademarks. See "Team logos: two build configurations" in `CLAUDE.md`.
 - No emoji. No SF Symbol decoration in the widget.
 
 ## Motion

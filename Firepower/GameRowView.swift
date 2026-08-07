@@ -2,6 +2,16 @@ import ActivityKit
 import FirepowerShared
 import SwiftUI
 
+// Set by the "Release-TricodeOnly" build configuration's Active Compilation
+// Condition (Firepower target) — an archive built from that configuration ships
+// with team-color badges everywhere instead of the licensed logo assets. See
+// Firepower.xcodeproj build settings and the Firepower-TricodeOnly scheme.
+#if TRICODE_ONLY_BUILD
+private let tricodeOnlyBuild = true
+#else
+private let tricodeOnlyBuild = false
+#endif
+
 struct GameRowView: View {
 
     let game: NHLGame
@@ -11,6 +21,11 @@ struct GameRowView: View {
     /// Driven by TodayView's TimelineView tick so the 4-hour Track gate opens
     /// without the user relaunching or pulling to refresh.
     var now: Date = .now
+
+    /// Preview/testing-only override to force the team-color fallback badge even
+    /// when the real logo asset is present — simulates a build configuration where
+    /// TeamLogos.xcassets is excluded (see the App Store build-exclusion plan).
+    var forceLogoFallback: Bool = false
 
     @State private var isStarting = false
 
@@ -55,17 +70,11 @@ struct GameRowView: View {
 
     private func teamRow(tricode: String, score: Int?) -> some View {
         HStack(spacing: 8) {
-            Image(tricode.lowercased())
-                .resizable()
-                .scaledToFit()
-                .frame(width: 22, height: 22)
-                .background(
-                    Circle()
-                        .fill(Color(.tertiarySystemGroupedBackground))
-                        .frame(width: 26, height: 26)
-                )
+            teamImage(tricode: tricode)
 
-            Text(tricode)
+            // Team name, not tricode — the tricode already appears inside the logo
+            // (or its fallback badge), so repeating it here read as "PIT PIT".
+            Text(NHLTeam.team(for: tricode)?.shortName ?? tricode)
                 .font(.system(.body, design: .rounded).weight(.semibold))
 
             if let score = score {
@@ -73,6 +82,24 @@ struct GameRowView: View {
                     .font(.system(.body, design: .rounded).weight(.bold))
                     .foregroundStyle(game.isLive ? .primary : .secondary)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func teamImage(tricode: String) -> some View {
+        let name = tricode.lowercased()
+        if !forceLogoFallback, !DebugFlags.forceTricodeFallback, !tricodeOnlyBuild, UIImage(named: name) != nil {
+            Image(name)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 32, height: 32)
+        } else {
+            TeamTricodeBadge(
+                tricode: tricode,
+                homeTricode: game.homeTeam.abbrev,
+                awayTricode: game.awayTeam.abbrev,
+                size: 32
+            )
         }
     }
 
@@ -159,4 +186,64 @@ struct GameRowView: View {
         }
         return "Track"
     }
+}
+
+// MARK: - Previews
+
+#Preview("Game list — real logos") {
+    VStack(spacing: 12) {
+        GameRowView(
+            game: NHLGame(id: 1, startTimeUTC: "2026-08-06T23:00:00Z",
+                          homeTeam: .init(abbrev: "BOS"), awayTeam: .init(abbrev: "NYR"),
+                          gameState: "FUT", gameType: 2),
+            activityManager: LiveActivityManager(), prefs: UserPreferences.shared
+        )
+        GameRowView(
+            game: NHLGame(id: 2, startTimeUTC: "2026-08-06T23:00:00Z",
+                          homeTeam: .init(abbrev: "DET"), awayTeam: .init(abbrev: "CHI"),
+                          gameState: "FUT", gameType: 2),
+            activityManager: LiveActivityManager(), prefs: UserPreferences.shared
+        )
+    }
+    .padding()
+    .background(Color(.systemGroupedBackground))
+}
+
+// Simulates a build where TeamLogos.xcassets is excluded (App Store submission
+// without licensed crest assets) — every row falls back to the team-color badge.
+// Includes known collision pairs (BOS/PIT gold, NYR/NYI blue, DET/CHI red) to verify
+// the fallback badge's collision resolution reads the same as the lock screen badge.
+#Preview("Game list — fallback badges (logos excluded)") {
+    VStack(spacing: 12) {
+        GameRowView(
+            game: NHLGame(id: 1, startTimeUTC: "2026-08-06T23:00:00Z",
+                          homeTeam: .init(abbrev: "BOS"), awayTeam: .init(abbrev: "NYR"),
+                          gameState: "FUT", gameType: 2),
+            activityManager: LiveActivityManager(), prefs: UserPreferences.shared,
+            forceLogoFallback: true
+        )
+        GameRowView(
+            game: NHLGame(id: 2, startTimeUTC: "2026-08-06T23:00:00Z",
+                          homeTeam: .init(abbrev: "PIT"), awayTeam: .init(abbrev: "NYI"),
+                          gameState: "FUT", gameType: 2),
+            activityManager: LiveActivityManager(), prefs: UserPreferences.shared,
+            forceLogoFallback: true
+        )
+        GameRowView(
+            game: NHLGame(id: 3, startTimeUTC: "2026-08-06T23:00:00Z",
+                          homeTeam: .init(abbrev: "DET"), awayTeam: .init(abbrev: "CHI"),
+                          gameState: "FUT", gameType: 2),
+            activityManager: LiveActivityManager(), prefs: UserPreferences.shared,
+            forceLogoFallback: true
+        )
+        GameRowView(
+            game: NHLGame(id: 4, startTimeUTC: "2026-08-06T23:00:00Z",
+                          homeTeam: .init(abbrev: "EDM"), awayTeam: .init(abbrev: "VAN"),
+                          gameState: "FUT", gameType: 2),
+            activityManager: LiveActivityManager(), prefs: UserPreferences.shared,
+            forceLogoFallback: true
+        )
+    }
+    .padding()
+    .background(Color(.systemGroupedBackground))
 }

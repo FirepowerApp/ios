@@ -9,6 +9,7 @@ Firepower is an iOS 18 app built around ActivityKit Live Activities. Pin your te
 - **Live Activity per game** across all five surfaces: lock screen, Dynamic Island compact, expanded, and minimal.
 - **Track several games at once** — start Live Activities for up to five games in parallel (the current iOS cap); Track disables once you're at the limit and re-enables when you stop one.
 - **Team-colored design.** Each game uses the two teams' brand colors. A glance tells you who's playing before you read a single digit.
+- **Team logos and names** in the daily game list, plus logos on every Dynamic Island surface. If a logo asset isn't available, it falls back to a team-colored tricode badge — same design language as the lock screen — so the UI never shows a broken image.
 - **xG as a headline metric.** Bold expected-goals values plus a proportional team-colored bar.
 - **Track opens 4 hours before puck drop.** Once the window opens, the Track button shows the scheduled start time (e.g. "6:00 PM") until the game begins, then flips to "Pregame" and finally to the live clock and xG on the first update. Earlier than that, the button shows when tracking opens instead of starting the activity too soon.
 - **Stays around after the final horn.** When the game ends, the Live Activity switches to a "Final" score card — the winner's badge keeps showing its tricode, and the loser's score dims — and stays on your lock screen for about 4 hours, no need to catch it the moment the game ends.
@@ -47,7 +48,7 @@ The wire format between backend and app is defined once in `FirepowerShared` and
 |---|---|
 | `Firepower/` | Main app: daily game list (`TodayView`), pinned teams, settings, Live Activity lifecycle (`LiveActivityManager`), NHL schedule client, notifications |
 | `FirepowerActivityKit/` | Widget extension: the Live Activity views for all five render surfaces (`FirepowerWidget`) |
-| `FirepowerShared/` | Local Swift package shared by both targets: the wire-format contract (`FirepowerActivityAttributes`), color utilities (`NHLColor`), and the 32-team palette (`NHLTeamColors`) |
+| `FirepowerShared/` | Local Swift package shared by both targets: the wire-format contract (`FirepowerActivityAttributes`), color utilities (`NHLColor`), the 32-team palette (`NHLTeamColors`), the logo-fallback badge (`TeamTricodeBadge`), and dev-only preview overrides (`DebugFlags`) |
 
 ## Build and run
 
@@ -65,6 +66,26 @@ From the command line:
 xcodebuild build -scheme Firepower \
   -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
+
+### Two schemes: real logos vs. tricode-only
+
+The NHL team logo assets (`Assets.xcassets` imagesets, both app and widget targets) are official
+league trademarks — they're vendored for convenience during development but aren't cleared for
+commercial redistribution. Two schemes let you choose which version you ship:
+
+| Scheme | Configuration | What ships |
+|---|---|---|
+| **Firepower** | `Release` | Real team logos everywhere |
+| **Firepower-TricodeOnly** | `Release-TricodeOnly` | Team-colored tricode badges (`TeamTricodeBadge`) instead of logos — no compiler flag or source edit needed, it's automatic |
+
+To archive a compliance-safe TestFlight/App Store build, pick **Firepower-TricodeOnly** in Xcode's
+scheme picker (or **Product → Scheme**) before **Product → Archive**. The `Release-TricodeOnly`
+build configuration sets `SWIFT_ACTIVE_COMPILATION_CONDITIONS = TRICODE_ONLY_BUILD` on the
+`Firepower` and `FirepowerActivityKitExtension` targets; `GameRowView.teamImage` and
+`FirepowerWidget.teamLogo` both check a local `tricodeOnlyBuild` constant driven by that flag,
+alongside the existing `UIImage(named:)` presence check and the DEBUG-only `DebugFlags.forceTricodeFallback`
+preview toggle. The normal **Firepower** scheme and `Release` configuration are unaffected —
+real logos ship by default.
 
 ## Backend
 
