@@ -343,10 +343,11 @@ private func previewManager(finished: [String: LiveActivityManager.FinishedGame]
         .background(Color(.systemGroupedBackground))
 }
 
-// D4-B accepted risk from the eng review: a zeroed MoneyPuck push still
+// Accepted risk, tracked in TODOS.md ("Home list can show a misleading 50/50
+// '(xG: 0.00)' on a zeroed MoneyPuck push"): a zeroed MoneyPuck push still
 // renders "(xG: 0.00)" rather than suppressing it. Kept as a preview so the
-// visual tradeoff stays visible, not just a line in the design doc.
-#Preview("Finished game — zeroed xG (known MoneyPuck bug, D4-B)") {
+// visual tradeoff stays visible, not just a line in a TODO.
+#Preview("Finished game — zeroed xG (known MoneyPuck bug, see TODOS.md)") {
     let game = NHLGame(id: 103, startTimeUTC: "2026-08-06T23:00:00Z",
                         homeTeam: .init(abbrev: "EDM", score: 3), awayTeam: .init(abbrev: "VAN", score: 2),
                         gameState: "OFF", gameType: 2)

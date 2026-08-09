@@ -48,3 +48,31 @@ Three directions considered, not yet decided:
 option, needs a design doc)
 **Priority:** P2
 **Depends on:** None
+
+### Home list can show a misleading 50/50 "(xG: 0.00)" on a zeroed MoneyPuck push
+
+**What:** `LiveActivityManager.FinishedGame` persists whatever `homeXG`/`awayXG` the Final push
+carried, with no zero-suppression. `GameRowView.teamRow` renders it verbatim as
+`"(xG: 0.00)"` per team if both are zero. Decided deliberately during eng review (accepted
+risk, not an oversight) — see `Firepower/GameRowView.swift:346` for the code-level note.
+
+**Why:** A known, pre-existing backend bug can send a malformed MoneyPuck CSV that zeroes the
+xG fields on a push (unrelated to this branch — tracked separately in the backend repo). Before
+this branch, that only broke the Live Activity's xG bar during a live game. After this branch,
+the SAME zeroed value now also gets persisted and shown on the home screen's list for that
+game's row, permanently (until the record is pruned the next day) — a new, second surface where
+the backend bug is visible.
+
+**Context:** Raised during `/plan-eng-review` on `NelsonBlakeN/home-screen-final-game-state`
+(2026-08-07) as decision "D4": always render vs. suppress the xG readout when both values are
+zero. Chose "always render" (simpler, and the zero-value case doesn't corrupt the score, just
+the xG figure). Not fixable from the iOS side — the correct fix is the backend's MoneyPuck CSV
+parsing, already tracked separately (see prior memory: "MoneyPuck CSV parse → 'Pregame' bug").
+This TODO exists so the acceptance of that risk has a committed home, instead of only living in
+an ephemeral review-session transcript.
+
+**Effort:** S (once the backend fix lands, no iOS change needed — the persisted value will
+simply stop being zero) — or S to add iOS-side zero-suppression as a stopgap, rendering "Final"
+with no xG line when both are zero, if the backend fix is delayed
+**Priority:** P4
+**Depends on:** Backend fix to MoneyPuck CSV parsing (separate repo, out of scope here)
