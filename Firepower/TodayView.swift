@@ -265,7 +265,16 @@ struct TodayView: View {
 // #if DEBUG-only — the whole block must be gated the same way, or it fails to
 // compile in Release (previews aren't automatically excluded from compilation).
 #if DEBUG
-#Preview("Long list — scroll header test") {
+// NOTE: UserPreferences.shared persists to the real UserDefaults.standard —
+// running this preview in Xcode overwrites your actual pinned teams on device.
+//
+// Factored out of the #Preview closure below: under this toolchain, a
+// property-observer-triggering assignment (UserPreferences.shared.pinnedTeams
+// = ...) as a statement inside a #Preview macro's trailing closure defeats the
+// macro's closure-return-type inference and fails the whole expansion with
+// "type of expression is ambiguous without a type annotation" — moving the
+// mutation into an ordinary function called from the closure sidesteps it.
+private func longListPreviewStore() -> ScheduleStore {
     let games: [NHLGame] = [
         // Pinned
         NHLGame(id: 1, startTimeUTC: "2026-08-04T22:00:00Z", homeTeam: .init(abbrev: "BOS"), awayTeam: .init(abbrev: "NYR"), gameState: "FUT", gameType: 2),
@@ -285,10 +294,11 @@ struct TodayView: View {
         NHLGame(id: 14, startTimeUTC: "2026-08-05T01:00:00Z", homeTeam: .init(abbrev: "LAK"), awayTeam: .init(abbrev: "SJS"), gameState: "FUT", gameType: 2),
         NHLGame(id: 15, startTimeUTC: "2026-08-05T01:30:00Z", homeTeam: .init(abbrev: "ARI"), awayTeam: .init(abbrev: "PHI"), gameState: "FUT", gameType: 2),
     ]
-    let store = ScheduleStore(previewGames: games)
-    // NOTE: UserPreferences.shared persists to the real UserDefaults.standard —
-    // running this preview in Xcode overwrites your actual pinned teams on device.
     UserPreferences.shared.pinnedTeams = ["BOS", "EDM"]
-    TodayView(previewStore: store)
+    return ScheduleStore(previewGames: games)
+}
+
+#Preview("Long list — scroll header test") {
+    TodayView(previewStore: longListPreviewStore())
 }
 #endif
