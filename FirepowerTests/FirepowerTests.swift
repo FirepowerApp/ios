@@ -7,6 +7,7 @@
 
 import Testing
 import Foundation
+import FirepowerShared
 @testable import Firepower
 
 // MARK: - Helpers
@@ -318,6 +319,29 @@ struct RehydratePlanTests {
         #expect(actions == [.prune(gameID: "g1")])
     }
 
+    // REGRESSION (adversarial review, eng finding #1): an activity that
+    // reached .ended while STILL enumerable (e.g. the app was backgrounded
+    // through the whole game and Apple's own 8h ceiling ended it with no app
+    // code in the loop) is treated identically to a genuinely-absent
+    // (dismissed) activity — both produce .prune. This is the exact
+    // precondition rehydrate()'s .prune handler relies on to capture the
+    // game's finishedGames result (from the real held Activity's
+    // content.state) before clearing `tracked`. This test locks in that
+    // .prune — not .keep, not silently dropped — is still the action here,
+    // so a future rehydratePlan change can't quietly break that capture site
+    // without a test failing. (The capture itself isn't testable here — it
+    // touches the live Activity object, which is why it lives in the
+    // ActivityKit-edge handler, not in this pure decision function.)
+    @Test("a tracked entry whose enumerated snapshot is already .ended is pruned, not kept or adopted")
+    func endedButStillEnumeratedTrackedEntryIsPruned() {
+        let enumerated = [ActivitySnapshot(activityID: "a1", gameID: "g1", isLive: false, gameEnded: true)]
+        let tracked = [TrackedSnapshot(activityID: "a1", gameID: "g1", isLive: true,
+                                       adoptedAt: now.addingTimeInterval(-3600))]
+        let actions = LiveActivityManager.rehydratePlan(
+            enumerated: enumerated, tracked: tracked, now: now, grace: grace)
+        #expect(actions == [.prune(gameID: "g1")])
+    }
+
     @Test("two independent games are decided independently in one pass")
     func twoGamesDecidedIndependently() {
         let enumerated = [ActivitySnapshot(activityID: "a1", gameID: "g1", isLive: true)]
@@ -549,5 +573,214 @@ struct ScheduleStoreCacheTests {
 
         #expect(store.games.first?.id == 1)
         #expect(store.fetchError == nil)
+    }
+}
+
+// MARK: - LiveActivityManager.FinishedGame
+
+// Pure decision-tree + I/O-shape tests. Building a real LiveActivityManager
+// isn't done here (its init() calls rehydrate(), which touches the
+// non-injectable Activity<FirepowerActivityAttributes> ActivityKit static —
+// the same reason RehydratePlanTests below stays at the pure static-func
+// level rather than exercising the instance). makeFinishedGame/pruneFinished/
+// load/writeFinishedGames are all nonisolated static funcs for exactly this
+// reason: the decision and persistence logic is fully testable without ever
+// constructing the @MainActor ActivityKit-backed class.
+@Suite("LiveActivityManager.FinishedGame")
+struct FinishedGameTests {
+
+    private typealias FinishedGame = LiveActivityManager.FinishedGame
+    private typealias ContentState = FirepowerActivityAttributes.ContentState
+
+    private let now = Date(timeIntervalSince1970: 1_760_000_000)
+
+    private func makeDefaults() -> UserDefaults {
+        let suiteName = "FirepowerTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        return defaults
+    }
+
+    // MARK: makeFinishedGame
+
+    @Test("a Final content state produces a matching FinishedGame record")
+    func finalStateProducesRecord() {
+        let state = ContentState(
+            homeScore: 4, awayScore: 2, homeXG: 3.1, awayXG: 2.4, gameState: "Final")
+        let record = LiveActivityManager.makeFinishedGame(from: state, gameID: "g1", now: now)
+        #expect(record == FinishedGame(
+            gameID: "g1", homeScore: 4, awayScore: 2, homeXG: 3.1, awayXG: 2.4, finishedAt: now))
+    }
+
+    // REGRESSION GUARD: this is the isEnded guard from the eng review's T1 —
+    // observe()'s .ended branch fires both when the backend's Final push ends
+    // the activity AND when the user taps "Tracking" to stop a still-LIVE
+    // game (stopActivity). Without this guard, stopping a live game would
+    // write a bogus "final" record for a game that didn't actually finish.
+    @Test("a non-Final content state produces no record (guards a manual stop of a live game)")
+    func nonFinalStateProducesNoRecord() {
+        let state = ContentState(
+            homeScore: 1, awayScore: 0, homeXG: 0.5, awayXG: 0.2,
+            gameState: "14:32 left, 2nd period")
+        #expect(LiveActivityManager.makeFinishedGame(from: state, gameID: "g1", now: now) == nil)
+    }
+
+    @Test("the local debug activity never produces a record, even at Final")
+    func debugGameProducesNoRecord() {
+        let state = ContentState(
+            homeScore: 4, awayScore: 2, homeXG: 3.1, awayXG: 2.4, gameState: "Final")
+        let record = LiveActivityManager.makeFinishedGame(
+            from: state, gameID: LiveActivityManager.debugGameID, now: now)
+        #expect(record == nil)
+    }
+
+    // MARK: pruneFinished
+
+    @Test("a record from today is kept")
+    func pruneKeepsToday() {
+        let records = ["g1": FinishedGame(
+            gameID: "g1", homeScore: 4, awayScore: 2, homeXG: 3.1, awayXG: 2.4, finishedAt: Date())]
+        let pruned = LiveActivityManager.pruneFinished(records, now: Date())
+        #expect(pruned["g1"] != nil)
+    }
+
+    @Test("a record from yesterday is dropped")
+    func pruneDropsYesterday() {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let records = ["g1": FinishedGame(
+            gameID: "g1", homeScore: 4, awayScore: 2, homeXG: 3.1, awayXG: 2.4, finishedAt: yesterday)]
+        let pruned = LiveActivityManager.pruneFinished(records, now: Date())
+        #expect(pruned["g1"] == nil)
+    }
+
+    // Exercises that pruning buckets by the INJECTED calendar's timezone, not
+    // the device's — the same day-boundary source ScheduleStore's
+    // Calendar.current.isDateInToday relies on, made explicit here since
+    // pruneFinished takes the calendar as a parameter.
+    @Test("day boundary is evaluated in the injected calendar's timezone")
+    func pruneUsesInjectedCalendarTimeZone() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "America/New_York")!
+        let lateNightET = et(2026, 3, 14, 23, 30)
+        let nextDayET = et(2026, 3, 15, 1, 30)
+        let records = ["g1": FinishedGame(
+            gameID: "g1", homeScore: 4, awayScore: 2, homeXG: 3.1, awayXG: 2.4, finishedAt: lateNightET)]
+        let pruned = LiveActivityManager.pruneFinished(records, now: nextDayET, calendar: cal)
+        #expect(pruned["g1"] == nil)
+    }
+
+    @Test("multiple records are pruned independently")
+    func pruneIsIndependentPerRecord() {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let records = [
+            "g1": FinishedGame(gameID: "g1", homeScore: 4, awayScore: 2, homeXG: 3.1, awayXG: 2.4, finishedAt: Date()),
+            "g2": FinishedGame(gameID: "g2", homeScore: 1, awayScore: 0, homeXG: 0.8, awayXG: 0.6, finishedAt: yesterday),
+        ]
+        let pruned = LiveActivityManager.pruneFinished(records, now: Date())
+        #expect(pruned["g1"] != nil)
+        #expect(pruned["g2"] == nil)
+    }
+
+    // MARK: Codec
+
+    @Test("FinishedGame round-trips through JSON encode/decode preserving all fields")
+    func finishedGameCodecRoundTrip() {
+        let original = FinishedGame(
+            gameID: "g1", homeScore: 4, awayScore: 2, homeXG: 3.1, awayXG: 2.4, finishedAt: now)
+        let data = try! JSONEncoder().encode(original)
+        let decoded = try! JSONDecoder().decode(FinishedGame.self, from: data)
+        #expect(decoded == original)
+    }
+
+    // MARK: load/writeFinishedGames
+
+    @Test("writeFinishedGames then loadFinishedGames round-trips through UserDefaults")
+    func writeThenLoadRoundTrips() {
+        let defaults = makeDefaults()
+        let records = ["g1": FinishedGame(
+            gameID: "g1", homeScore: 4, awayScore: 2, homeXG: 3.1, awayXG: 2.4, finishedAt: Date())]
+        LiveActivityManager.writeFinishedGames(records, into: defaults)
+        let loaded = LiveActivityManager.loadFinishedGames(from: defaults, now: Date())
+        #expect(loaded == records)
+    }
+
+    @Test("loadFinishedGames prunes a persisted record from a previous day")
+    func loadPrunesStaleRecord() {
+        let defaults = makeDefaults()
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let records = ["g1": FinishedGame(
+            gameID: "g1", homeScore: 4, awayScore: 2, homeXG: 3.1, awayXG: 2.4, finishedAt: yesterday)]
+        LiveActivityManager.writeFinishedGames(records, into: defaults)
+        let loaded = LiveActivityManager.loadFinishedGames(from: defaults, now: Date())
+        #expect(loaded.isEmpty)
+    }
+
+    @Test("loadFinishedGames no-ops on no cached data")
+    func loadNoOpsWithNoData() {
+        let defaults = makeDefaults()
+        let loaded = LiveActivityManager.loadFinishedGames(from: defaults, now: Date())
+        #expect(loaded.isEmpty)
+    }
+
+    @Test("loadFinishedGames no-ops when the payload fails to decode")
+    func loadNoOpsOnCorruptData() {
+        let defaults = makeDefaults()
+        defaults.set(Data([0xFF, 0x00]), forKey: LiveActivityManager.finishedGamesKey)
+        let loaded = LiveActivityManager.loadFinishedGames(from: defaults, now: Date())
+        #expect(loaded.isEmpty)
+    }
+}
+
+// MARK: - GameRowView.didFinish
+
+// Pure decision logic, pulled out of the view so the two-signal OR (schedule
+// API vs push feed) is tested directly. This is the exact truth table that
+// closes the original bug: a stale-LIVE schedule combined with a persisted
+// FinishedGame record must still read as finished.
+@Suite("GameRowView.didFinish")
+struct GameRowViewDidFinishTests {
+
+    @Test("schedule Final, no push record: finished")
+    func scheduleFinalOnly() {
+        #expect(GameRowView.didFinish(scheduleIsFinal: true, hasFinishedRecord: false))
+    }
+
+    @Test("schedule not Final, push record present: finished (the core bug this closes)")
+    func pushRecordOnly() {
+        #expect(GameRowView.didFinish(scheduleIsFinal: false, hasFinishedRecord: true))
+    }
+
+    @Test("schedule Final and push record present: finished")
+    func bothSignalsFinal() {
+        #expect(GameRowView.didFinish(scheduleIsFinal: true, hasFinishedRecord: true))
+    }
+
+    @Test("neither signal Final: not finished")
+    func neitherSignalFinal() {
+        #expect(!GameRowView.didFinish(scheduleIsFinal: false, hasFinishedRecord: false))
+    }
+}
+
+// MARK: - GameRowView.resolvedScore
+
+// Testing specialist finding (eng review): the score-resolution fallback that
+// makes the persisted push result win over a stale schedule fetch had no
+// dedicated test, unlike its sibling didFinish above.
+@Suite("GameRowView.resolvedScore")
+struct GameRowViewResolvedScoreTests {
+
+    @Test("finished record score wins over schedule score")
+    func finishedRecordScoreWins() {
+        #expect(GameRowView.resolvedScore(scheduleScore: 1, finishedRecordScore: 5) == 5)
+    }
+
+    @Test("falls back to schedule score when no finished record")
+    func fallsBackToScheduleScoreWhenNoRecord() {
+        #expect(GameRowView.resolvedScore(scheduleScore: 1, finishedRecordScore: nil) == 1)
+    }
+
+    @Test("both nil resolves to nil")
+    func bothNilResolvesToNil() {
+        #expect(GameRowView.resolvedScore(scheduleScore: nil, finishedRecordScore: nil) == nil)
     }
 }

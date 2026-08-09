@@ -5,10 +5,15 @@ NHL hockey Live Activity app. Shows scores on the lock screen and Dynamic Island
 ## Planning docs
 
 Planning materials live in a local working directory outside this repo (referred to as `$PLANNING` below). They are not committed here:
-- `todos.md` — deferred work with priority
+- `todos.md` — personal/external deferred work with priority, scratch-level, not committed
 - `test-plan-*.md` — QA test plan
 - `backend/` — scratch copies of backend Go files for local iteration; copy into your local `FirepowerApp/backend` clone when ready (see Backend repo section below)
 - `live-activity-redesign.md` — design + eng review plan for the Live Activity redesign (branch: `NelsonBlakeN/live-activity-redesign`)
+
+Separately, [`TODOS.md`](TODOS.md) at the repo root **is committed** — it tracks engineering debt
+surfaced during review (e.g. `/review`, `/plan-eng-review`) that should travel with the code
+instead of living only in `$PLANNING`. The two lists are not the same thing: `$PLANNING/todos.md`
+is yours; `TODOS.md` is the project's.
 
 ## Architecture: iOS app is a pure APNs channel subscriber
 
@@ -81,7 +86,7 @@ Only the dynamic `ContentState` crosses the wire. The iOS `ContentState` (in `Fi
 ## Key files
 
 - `Firepower/` — main app target (TodayView, LiveActivityManager, FirepowerApp, NHLScheduleClient, OffseasonReplay)
-- `Firepower/LiveActivityManager.swift` — Live Activity lifecycle. `rehydrate()`/`rehydratePlan` reconcile tracked state against the OS's running activities on every foreground; `endIfFinal` is the only place in the app that ends a finished game's activity (see the wire-format section above). `TodayView`'s `reconcile()` calls `rehydrate()` on cold launch and every scenePhase transition to `.active`.
+- `Firepower/LiveActivityManager.swift` — Live Activity lifecycle. `rehydrate()`/`rehydratePlan` reconcile tracked state against the OS's running activities on every foreground; `endIfFinal` is the only place in the app that ends a finished game's activity (see the wire-format section above). `TodayView`'s `reconcile()` calls `rehydrate()` on cold launch and every scenePhase transition to `.active`. Also owns `finishedGames`: the moment a tracked game's push reaches Final, its result (score + xG) is captured into a persisted `FinishedGame` record — captured on every path that can retire a game from `tracked` (the live `.ended` observer, `rehydrate()`'s prune path for a game that finished while the app wasn't running, and `stopActivity()`) so `GameRowView` can show the real result and hide the Track button even after the schedule API or the Live Activity itself has gone stale.
 - `Firepower/OffseasonReplay.swift` — offseason-only date remapping: in the June 22–Sept 30 window, maps today onto the real 2025-26 date and reshapes fetched games onto today (FUT, scores cleared, DST-aware). Anchors mirror the emulator's `cmd/buildschedule` flags; a pinned test in `FirepowerTests` flags drift.
 - `Firepower/NHLTeams.swift` — static config for all 32 teams: `tricode`, `name`, `shortName` (mascot only, e.g. "Penguins" — rendered next to the logo/badge in `GameRowView`, since the tricode already appears inside it), channel IDs. Color lives in `NHLTeamColors` (`FirepowerShared`), not here.
 - `FirepowerShared/` — local Swift package shared by app and widget (FirepowerActivityAttributes, NHLColor, NHLTeamColors, TeamTricodeBadge, DebugFlags)

@@ -74,11 +74,38 @@ final class LiveActivityManager: ObservableObject {
     @Published private(set) var state: ActivityState = .idle
     @Published private(set) var pushToken: String?
 
+    /// Final result captured from the push the moment a tracked game reaches
+    /// Final — keyed by NHL game ID. Populated in `observe()`'s `.ended` branch,
+    /// BEFORE `tracked[gameID]` is cleared, so the home screen still has the
+    /// game's result after the manager forgets it as "tracked". Persisted so it
+    /// survives relaunch and outlives the Live Activity itself (which can be
+    /// dismissed while the game result is still relevant to the day's list).
+    @Published private(set) var finishedGames: [String: FinishedGame] = [:]
+
     /// True once iOS rejects a start for exceeding its Live Activity cap. The UI
     /// disables the Track button while set. Cleared when a slot frees up (an
     /// activity is stopped or ends), so the cap is learned at runtime rather than
     /// hardcoded — iOS doesn't expose the exact number.
     @Published private(set) var atActivityLimit = false
+
+    /// A completed game's result, captured from the push that reached Final.
+    /// Persisted keyed by NHL game ID so the home screen can show a finished
+    /// game's real score/xG without re-deriving it from the (possibly stale)
+    /// schedule API. Day-scoped: pruned once `finishedAt` is no longer today,
+    /// matching ScheduleStore's own day-boundary cache invalidation — a
+    /// finished-game record never outlives the single-day list it decorates.
+    struct FinishedGame: Codable, Equatable {
+        let gameID: String
+        let homeScore: Int
+        let awayScore: Int
+        let homeXG: Double
+        let awayXG: Double
+        let finishedAt: Date
+    }
+
+    static let finishedGamesKey = "finishedGames"
+
+    private let defaults: UserDefaults
 
     /// Game ID used for the local DEBUG activity.
     static let debugGameID = "debug-0"
@@ -119,8 +146,78 @@ final class LiveActivityManager: ObservableObject {
         case unavailable // iOS < 18 or not supported on this device
     }
 
-    init() {
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        finishedGames = Self.loadFinishedGames(from: defaults, now: Date())
         rehydrate()
+    }
+
+    // MARK: - Finished-game persistence (pure — no ActivityKit, no I/O)
+
+    /// Builds a `FinishedGame` from a push's content state — nil if the game
+    /// hasn't actually reached Final, or it's the local DEBUG activity (which
+    /// has no real result worth persisting).
+    nonisolated static func makeFinishedGame(
+        from state: FirepowerActivityAttributes.ContentState,
+        gameID: String,
+        now: Date
+    ) -> FinishedGame? {
+        guard state.isEnded, gameID != debugGameID else { return nil }
+        return FinishedGame(
+            gameID: gameID,
+            homeScore: state.homeScore,
+            awayScore: state.awayScore,
+            homeXG: state.homeXG,
+            awayXG: state.awayXG,
+            finishedAt: now
+        )
+    }
+
+    /// Drops any record whose result isn't from today — mirrors
+    /// `ScheduleStore`'s own `Calendar.current.isDateInToday` day-boundary
+    /// check, so a finished-game record can never outlive the single-day game
+    /// list it decorates.
+    nonisolated static func pruneFinished(
+        _ records: [String: FinishedGame],
+        now: Date,
+        calendar: Calendar = .current
+    ) -> [String: FinishedGame] {
+        records.filter { calendar.isDate($0.value.finishedAt, inSameDayAs: now) }
+    }
+
+    /// The single reader of the on-disk finished-games format (mirrors
+    /// `ScheduleStore.writeCache`'s "one place knows the shape" role) — pure
+    /// I/O + the same prune every write path applies, so a record from a
+    /// previous day never surfaces on load either.
+    nonisolated static func loadFinishedGames(from defaults: UserDefaults, now: Date) -> [String: FinishedGame] {
+        guard let data = defaults.data(forKey: finishedGamesKey),
+              let decoded = try? JSONDecoder().decode([String: FinishedGame].self, from: data)
+        else { return [:] }
+        return pruneFinished(decoded, now: now)
+    }
+
+    /// The single writer of the on-disk finished-games format.
+    nonisolated static func writeFinishedGames(_ records: [String: FinishedGame], into defaults: UserDefaults) {
+        guard let data = try? JSONEncoder().encode(records) else {
+            print("LiveActivityManager: FAILED to encode finishedGames")
+            return
+        }
+        defaults.set(data, forKey: finishedGamesKey)
+    }
+
+    private func persistFinishedGames() {
+        Self.writeFinishedGames(finishedGames, into: defaults)
+    }
+
+    /// Re-applies the day-scope prune. Called from `rehydrate()`, which already
+    /// runs on init and on every foreground, so a day boundary crossed while
+    /// backgrounded is caught the same way stale schedule data is.
+    private func pruneFinishedGamesIfStale() {
+        let pruned = Self.pruneFinished(finishedGames, now: Date())
+        if pruned.count != finishedGames.count {
+            finishedGames = pruned
+            persistFinishedGames()
+        }
     }
 
     // MARK: - Rehydration decision (pure — no ActivityKit, no clock, no I/O)
@@ -262,6 +359,8 @@ final class LiveActivityManager: ObservableObject {
     /// re-observing an already-adopted activity would leak three infinite
     /// `for await` loops per call.
     func rehydrate() {
+        pruneFinishedGamesIfStale()
+
         let enumerated = Activity<FirepowerActivityAttributes>.activities.map {
             ActivitySnapshot(
                 activityID: $0.id,
@@ -314,6 +413,22 @@ final class LiveActivityManager: ObservableObject {
                 Task { await activity.end(nil, dismissalPolicy: .immediate) }
 
             case .prune(let gameID):
+                // Capture before clearing: this is the ONLY path that catches
+                // an activity that reached Final while nobody's process was
+                // alive to observe() it live — e.g. the app was backgrounded
+                // through the whole game and Apple's own 8h ceiling ended it
+                // with no app code in the loop. rehydratePlan's enumeration
+                // loop skips already-.ended snapshots (isLive == false) before
+                // they're ever handled, so by the time an entry reaches this
+                // prune case, this is the last chance to read its content —
+                // `tracked[gameID]?.activity` is still the real, held Activity
+                // reference, whose `.content.state` reflects the last known
+                // push regardless of whether the OS still considers it live.
+                if let activity = tracked[gameID]?.activity,
+                   let record = Self.makeFinishedGame(from: activity.content.state, gameID: gameID, now: Date()) {
+                    finishedGames[gameID] = record
+                    persistFinishedGames()
+                }
                 tracked[gameID] = nil
                 freedSlot = true
             }
@@ -381,6 +496,19 @@ final class LiveActivityManager: ObservableObject {
                     // Only clear the slot if this instance still owns it — an
                     // ended duplicate must not evict the survivor.
                     if tracked[gameID]?.activity.id == activity.id {
+                        // Capture the game's result BEFORE clearing `tracked` —
+                        // this is the one place a finished game's score/xG
+                        // survives past the moment the manager stops
+                        // considering it "tracked". Guarded on isEnded (inside
+                        // makeFinishedGame) so manually stopping a LIVE game via
+                        // stopActivity() never writes a bogus "final" record for
+                        // a game that didn't actually finish.
+                        if let record = Self.makeFinishedGame(
+                            from: activity.content.state, gameID: gameID, now: Date()
+                        ) {
+                            finishedGames[gameID] = record
+                            persistFinishedGames()
+                        }
                         tracked[gameID] = nil
                         atActivityLimit = false  // a slot freed up
                         if tracked.isEmpty { state = .idle }
@@ -498,6 +626,17 @@ final class LiveActivityManager: ObservableObject {
     func stopActivity(gameID: String) async {
         guard let entry = tracked[gameID] else { return }
         await entry.activity.end(nil, dismissalPolicy: .immediate)
+        // Capture BEFORE clearing tracked, deterministically — not via
+        // observe()'s async .ended branch. That branch guards on
+        // tracked[gameID]?.activity.id == activity.id, and this function
+        // clears tracked[gameID] synchronously right below with no
+        // intervening await, so a genuine Final reached moments before the
+        // user tapped "stop tracking" would otherwise lose the race and never
+        // get captured.
+        if let record = Self.makeFinishedGame(from: entry.activity.content.state, gameID: gameID, now: Date()) {
+            finishedGames[gameID] = record
+            persistFinishedGames()
+        }
         tracked[gameID] = nil
         atActivityLimit = false  // stopping frees a slot, so re-enable Track
         if tracked.isEmpty {
