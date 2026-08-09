@@ -62,6 +62,14 @@ Below the bold values sit **two stacked team-colored capsule bars** — the home
 
 Sensitivity note: because the split is half-width per 1.0 of xG, a gap of ≥ 1.0 saturates the leader's bar to full width. That keeps mid-game swings dramatic and readable; revisit the scale if real games routinely peg the bar.
 
+**Main app exception — daily game list.** A completed game's row in `TodayView`'s list
+(`GameRowView.teamRow`) shows xG as plain text next to each team's score —
+`"{team} {score} (xG: {value})"` — not the capsule bar. Deliberate: the bar's team-colored
+capsules are tuned for the widget's near-black background (`activityBackgroundTint`) and read
+poorly on the list row's light `secondarySystemGroupedBackground`; the list also only ever shows
+xG for a game once it's Final (sourced from the persisted push result), never live, so the bar's
+in-game "which way is it swinging" motion isn't the point there — a static reference value is.
+
 ## Iconography
 
 - Team logos: SVG imagesets in `Assets.xcassets` (light/dark variants), lowercase tricode (`bos.imageset`). Resolved via `teamLogo(_:homeTricode:awayTricode:size:)` (widget) / `GameRowView.teamImage` (app). Falls back to `TeamTricodeBadge` — a team-colored tricode badge reusing the lock screen's collision-resolution rules — if the asset is missing, not plain text. Used in the daily game list and every Dynamic Island surface (compact/minimal/expanded); the lock screen uses its own fixed-size team-colored badge (`TeamBadge`) instead of a logo.

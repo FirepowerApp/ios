@@ -13,6 +13,7 @@ Firepower is an iOS 18 app built around ActivityKit Live Activities. Pin your te
 - **xG as a headline metric.** Bold expected-goals values plus a proportional team-colored bar.
 - **Track opens 4 hours before puck drop.** Once the window opens, the Track button shows the scheduled start time (e.g. "6:00 PM") until the game begins, then flips to "Pregame" and finally to the live clock and xG on the first update. Earlier than that, the button shows when tracking opens instead of starting the activity too soon.
 - **Stays around after the final horn.** When the game ends, the Live Activity switches to a "Final" score card — the winner's badge keeps showing its tricode, and the loser's score dims — and stays on your lock screen for about 4 hours, no need to catch it the moment the game ends.
+- **Daily game list stays accurate for tracked games.** For any game you tracked, the list shows the real final score and xG (`Team 4 (xG: 3.10)`) and stops offering to track it the moment the Live Activity's push says the game is over — it doesn't wait on the slower NHL schedule API to catch up.
 - **Daily game list** from the public NHL Stats API, with your pinned teams surfaced first.
 - **Pre-game notifications** and background schedule refresh so the day's games are ready when you open the app.
 
@@ -36,7 +37,7 @@ The app is a **pure APNs channel subscriber**. It never calls the Firepower back
 - Live score/xG/event updates are delivered by APNs broadcast push to the team's channel. No running device or per-device registration is required; the backend pushes to the channel and every subscriber's Live Activity updates.
 - When you start a game, `LiveActivityManager` requests the activity and subscribes to a team's channel — either team works, since the backend broadcasts each game on both teams' channels. You can track multiple games at once (up to the iOS limit, currently five); each runs as its own Live Activity.
 - Live Activities outlive the app process — iOS routinely terminates a backgrounded app well before puck drop. On relaunch, `LiveActivityManager` rehydrates from the system's running activities, so the game list correctly shows what's already being tracked instead of resetting to untracked.
-- When a game ends, the app — not the backend — decides how long the Live Activity stays visible. It keeps the activity alive and switches it to a "Final" score card the moment it sees the game-ending push, so the result stays on your lock screen for about 4 hours rather than disappearing right away.
+- When a game ends, the app — not the backend — decides how long the Live Activity stays visible. It keeps the activity alive and switches it to a "Final" score card the moment it sees the game-ending push, so the result stays on your lock screen for about 4 hours rather than disappearing right away. It also saves that final result for the day's game list, so the list reflects the outcome even after the Live Activity itself is gone.
 
 **Offseason replay.** During the NHL offseason (June 22 – September 30) the real schedule is empty, so there is nothing to track. In that window `OffseasonReplay` maps today onto the corresponding real 2025-26 date and slides those games onto the daily list — marked upcoming with scores cleared and start times shifted (DST-aware) — so you can still start Live Activities against replayed games. Outside the window it is a no-op and the in-season path is unchanged.
 
@@ -95,3 +96,4 @@ The push backend is a Go service in a **separate repository** (`FirepowerApp/bac
 
 - [CLAUDE.md](CLAUDE.md) — architecture, conventions, and backend coordination
 - [DESIGN.md](DESIGN.md) — the design system (team-color rules, typography, the xG bar, accessibility)
+- [TODOS.md](TODOS.md) — engineering debt surfaced during review, tracked alongside the code
