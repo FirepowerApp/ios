@@ -269,8 +269,8 @@ struct TodayView: View {
 // running this preview in Xcode overwrites your actual pinned teams on device.
 //
 // Factored out of the #Preview closure below: under this toolchain, a
-// property-observer-triggering assignment (UserPreferences.shared.pinnedTeams
-// = ...) as a statement inside a #Preview macro's trailing closure defeats the
+// Void-typed assignment statement (UserPreferences.shared.pinnedTeams
+// = ...) inside a #Preview macro's trailing closure defeats the
 // macro's closure-return-type inference and fails the whole expansion with
 // "type of expression is ambiguous without a type annotation" — moving the
 // mutation into an ordinary function called from the closure sidesteps it.
