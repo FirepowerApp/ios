@@ -784,3 +784,52 @@ struct GameRowViewResolvedScoreTests {
         #expect(GameRowView.resolvedScore(scheduleScore: nil, finishedRecordScore: nil) == nil)
     }
 }
+
+// MARK: - UserPreferences pinned-team persistence
+
+// Regression coverage for the reboot bug: pinned teams used to vanish after a
+// power-off/restart. UserPreferences cached its pins in a snapshot loaded once
+// at init; a read before the first unlock after a reboot returned an empty set,
+// and the next togglePin persisted that whole empty-derived snapshot, wiping the
+// real pins from disk. pinnedTeams is now a cache-free computed passthrough, so
+// a stale in-memory view can never clobber the live store.
+@Suite("UserPreferences pinned-team persistence")
+struct UserPreferencesPinTests {
+
+    private func freshDefaults() -> UserDefaults {
+        let name = "UserPreferencesTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        return defaults
+    }
+
+    @Test("a second instance reads pins written by the first (no stale cache)")
+    func readsAcrossInstances() {
+        let defaults = freshDefaults()
+        UserPreferences(defaults: defaults).pinnedTeams = ["BOS", "EDM"]
+        #expect(UserPreferences(defaults: defaults).pinnedTeams == ["BOS", "EDM"])
+    }
+
+    @Test("toggle preserves pins that appear on disk after init (the reboot bug)")
+    func togglePreservesLateAppearingPins() {
+        let defaults = freshDefaults()
+        // Instance created while the store reads empty — models a locked,
+        // before-first-unlock background launch.
+        let prefs = UserPreferences(defaults: defaults)
+        #expect(prefs.pinnedTeams.isEmpty)
+        // The real pins become readable later (after first unlock / from disk).
+        defaults.set(try! JSONEncoder().encode(["BOS", "EDM"]), forKey: "pinnedTeams")
+        // User pins a new team.
+        prefs.togglePin("TOR")
+        #expect(prefs.pinnedTeams == ["BOS", "EDM", "TOR"])
+    }
+
+    @Test("toggling an existing pin removes only that team")
+    func toggleOffOne() {
+        let defaults = freshDefaults()
+        let prefs = UserPreferences(defaults: defaults)
+        prefs.pinnedTeams = ["BOS", "EDM", "TOR"]
+        prefs.togglePin("EDM")
+        #expect(prefs.pinnedTeams == ["BOS", "TOR"])
+    }
+}
