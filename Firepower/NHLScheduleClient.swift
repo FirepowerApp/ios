@@ -4,17 +4,73 @@ struct NHLScheduleClient {
 
     private static let baseURL = "https://api-web.nhle.com"
 
-    static func fetchTodayGames() async throws -> [NHLGame] {
-        // During the offseason window, map today onto the corresponding real
-        // 2025-26 date so replayed games appear. Outside the window `replay` is
-        // nil and this behaves exactly as the normal in-season path.
-        let replay = OffseasonReplay.plan()
-        let dateString = replay?.queryDate ?? todayString()
+    /// Fetches today's games. Two independent rules, each keyed off exactly
+    /// one condition:
+    ///   - SCORE always comes from a direct `/v1/score` lookup by game ID,
+    ///     unconditionally — in-season or offseason, any build. This is what
+    ///     fixes the schedule endpoint's laggy embedded score, and is exactly
+    ///     as true during offseason replay (a spoiler final score showing up
+    ///     early is expected there).
+    ///   - STATE depends only on whether today is in-season or offseason —
+    ///     never on build environment. In-season, state comes from that same
+    ///     direct fetch (freshness fix). Offseason, state is never touched by
+    ///     any NHL fetch — it's driven purely by `reshape()`'s forced "FUT"
+    ///     plus the existing time/tracking/push logic (TrackingWindow,
+    ///     isTrackable, LiveActivityManager's isTracking, finishedRecord).
+    ///     The direct fetch's state there describes the real, long-finished
+    ///     historical game, which is irrelevant to the replayed timeline.
+    ///
+    /// `env` only gates whether offseason replay happens at all
+    /// (`showsReplayedGames`) — real App Store users never see fake games,
+    /// regardless of date.
+    static func fetchTodayGames(env: BuildEnvironment = .current) async throws -> [NHLGame] {
+        let todayStr = todayString()
+        let response = try await fetchSchedule(dateString: todayStr)
+        let todayEntry = response.gameWeek.first(where: { $0.date == todayStr }) ?? response.gameWeek.first
+        let numberOfGamesToday = todayEntry?.numberOfGames ?? todayEntry?.games.count ?? 0
+
+        let isOffseason = OffseasonReplay.isOffseason(
+            numberOfGamesToday: numberOfGamesToday,
+            preSeasonStartDate: response.preSeasonStartDate)
+
+        guard isOffseason, env.showsReplayedGames, let replay = OffseasonReplay.plan() else {
+            // Normal in-season path — or offseason on a build that must never
+            // show replayed games (App Store production). In-season: state
+            // does come from the direct fetch.
+            let filtered = filterGameTypes(todayEntry?.games ?? [])
+            return await mergeDirectScores(into: filtered, dateString: todayStr, applyState: true)
+        }
+
+        print("NHLScheduleClient: offseason replay active, querying \(replay.queryDate)")
+        let replayResponse = try await fetchSchedule(dateString: replay.queryDate)
+        let replayEntry = replayResponse.gameWeek.first(where: { $0.date == replay.queryDate }) ?? replayResponse.gameWeek.first
+        let filtered = filterGameTypes(replayEntry?.games ?? [])
+        let reshaped = replay.reshape(filtered)
+
+        // Offseason: score always overlaid; state never is — reshape()'s "FUT"
+        // plus the existing trackability/push logic stays fully in control.
+        return await mergeDirectScores(into: reshaped, dateString: replay.queryDate, applyState: false)
+    }
+
+    static func todayString() -> String {
+        dateFormatter.string(from: Date())
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.timeZone = .current
+        return f
+    }()
+
+    // MARK: - Fetch helpers
+
+    private static func fetchSchedule(dateString: String) async throws -> ScheduleResponse {
         guard let url = URL(string: "\(baseURL)/v1/schedule/\(dateString)") else {
             throw URLError(.badURL)
         }
 
-        print("NHLScheduleClient: fetching \(url)\(replay != nil ? " [offseason replay]" : "")")
+        print("NHLScheduleClient: fetching \(url)")
         let (data, response) = try await URLSession.shared.data(from: url)
 
         if let http = response as? HTTPURLResponse {
@@ -31,48 +87,60 @@ struct NHLScheduleClient {
 
         let decoded = try JSONDecoder().decode(ScheduleResponse.self, from: data)
         print("NHLScheduleClient: gameWeek entries = \(decoded.gameWeek.count)")
+        return decoded
+    }
 
-        // The API returns a week block; find the entry whose date matches today.
-        // Fall back to gameWeek[0] if no exact match (handles UTC date edge cases).
-        let dayEntry = decoded.gameWeek.first(where: { $0.date == dateString })
-                    ?? decoded.gameWeek.first
-
-        let games = dayEntry?.games ?? []
-        print("NHLScheduleClient: found \(games.count) game(s) for \(dateString)")
-
-        // Filter out preseason (1) and all-star (4); pass unknown gameType through.
-        let filtered = games.filter { g in
+    // Filter out preseason (1) and all-star (4); pass unknown gameType through.
+    private static func filterGameTypes(_ games: [NHLGame]) -> [NHLGame] {
+        games.filter { g in
             guard let type = g.gameType else { return true }
             return type == 2 || type == 3
         }
+    }
 
-        // Offseason replay: slide the real 2025-26 games onto today (FUT, scores
-        // cleared, start times shifted). No-op on the normal in-season path.
-        if let replay {
-            return replay.reshape(filtered)
+    /// Overlays each game's score with a direct `/v1/score/{date}` lookup by
+    /// game ID — always. Best-effort: a failed score fetch leaves `games`
+    /// unchanged rather than failing the whole schedule fetch, since the
+    /// schedule's own embedded score is still a usable (if laggier) fallback.
+    ///
+    /// `applyState` is the one knob, and it tracks a single real-world
+    /// condition — is today in-season or offseason — not build environment.
+    /// True applies the same fetch's gameState too (the in-season freshness
+    /// fix). False leaves state untouched (offseason: the fetch's state
+    /// describes the real, already-finished historical game, which has
+    /// nothing to do with the replayed timeline's own FUT/LIVE/Final).
+    private static func mergeDirectScores(
+        into games: [NHLGame], dateString: String, applyState: Bool
+    ) async -> [NHLGame] {
+        guard let scores = try? await NHLScoreClient.fetchScores(date: dateString) else { return games }
+        return games.map { game in
+            guard let entry = scores[game.id] else { return game }
+            var home = game.homeTeam; home.score = entry.homeScore ?? home.score
+            var away = game.awayTeam; away.score = entry.awayScore ?? away.score
+            return NHLGame(
+                id: game.id,
+                startTimeUTC: game.startTimeUTC,
+                homeTeam: home,
+                awayTeam: away,
+                gameState: (applyState && !entry.gameState.isEmpty) ? entry.gameState : game.gameState,
+                gameType: game.gameType)
         }
-        return filtered
     }
-
-    static func todayString() -> String {
-        dateFormatter.string(from: Date())
-    }
-
-    private static let dateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        f.timeZone = .current
-        return f
-    }()
 }
 
 // MARK: - Decodable shapes
 
 private struct ScheduleResponse: Decodable {
     let gameWeek: [GameWeekEntry]
+    let preSeasonStartDate: String?
 }
 
 private struct GameWeekEntry: Decodable {
     let date: String
+    // Optional so a single missing field doesn't throw the whole schedule
+    // decode; the call site falls back to `games.count`. Kept as a distinct
+    // field because the offseason summer schedule reports numberOfGames == 0
+    // with an empty games array, and that count is the offseason signal.
+    let numberOfGames: Int?
     let games: [NHLGame]
 }
