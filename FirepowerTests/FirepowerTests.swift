@@ -110,6 +110,60 @@ struct OffseasonReplayPlanTests {
     }
 }
 
+// MARK: - OffseasonReplay.isOffseason
+
+// Signal choice pinned against the live API (2026-08-24): mid-season and
+// playoff dates return a `preSeasonStartDate` in the past (it describes THIS
+// season); the offseason gap returns one in the future (the API has rolled
+// forward to describe NEXT season). `playoffEndDate` was tried first and
+// rejected — it rolls forward the same way, so `today > playoffEndDate` never
+// fires once deep in the summer gap (it becomes next June, not this June).
+@Suite("OffseasonReplay.isOffseason")
+struct OffseasonReplayIsOffseasonTests {
+
+    @Test("no games today and next preseason hasn't started: offseason")
+    func noGamesBeforeNextPreseasonIsOffseason() {
+        #expect(OffseasonReplay.isOffseason(
+            numberOfGamesToday: 0, preSeasonStartDate: "2026-09-19", now: et(2026, 8, 15)))
+    }
+
+    @Test("no games today but next preseason already started (mid-playoff off day): not offseason")
+    func noGamesAfterPreseasonStartIsNotOffseason() {
+        #expect(!OffseasonReplay.isOffseason(
+            numberOfGamesToday: 0, preSeasonStartDate: "2025-09-20", now: et(2026, 5, 1)))
+    }
+
+    @Test("games scheduled today: not offseason regardless of date")
+    func gamesTodayIsNotOffseason() {
+        #expect(!OffseasonReplay.isOffseason(
+            numberOfGamesToday: 5, preSeasonStartDate: "2026-09-19", now: et(2026, 8, 15)))
+    }
+
+    @Test("missing preSeasonStartDate: not offseason (fails closed on unparseable response)")
+    func missingPreSeasonStartDateIsNotOffseason() {
+        #expect(!OffseasonReplay.isOffseason(
+            numberOfGamesToday: 0, preSeasonStartDate: nil, now: et(2026, 8, 15)))
+    }
+
+    @Test("unparseable preSeasonStartDate: not offseason (fails closed)")
+    func unparseablePreSeasonStartDateIsNotOffseason() {
+        #expect(!OffseasonReplay.isOffseason(
+            numberOfGamesToday: 0, preSeasonStartDate: "not-a-date", now: et(2026, 8, 15)))
+    }
+
+    @Test("exactly on next preseason's start date: not offseason (boundary exclusive)")
+    func exactlyOnPreSeasonStartDateIsNotOffseason() {
+        #expect(!OffseasonReplay.isOffseason(
+            numberOfGamesToday: 0, preSeasonStartDate: "2026-09-19", now: et(2026, 9, 19)))
+    }
+
+    @Test("day before next preseason's start date: offseason")
+    func dayBeforePreSeasonStartDateIsOffseason() {
+        #expect(OffseasonReplay.isOffseason(
+            numberOfGamesToday: 0, preSeasonStartDate: "2026-09-19", now: et(2026, 9, 18)))
+    }
+}
+
 // MARK: - OffseasonReplay.reshape
 
 struct OffseasonReplayReshapeTests {
@@ -782,6 +836,45 @@ struct GameRowViewResolvedScoreTests {
     @Test("both nil resolves to nil")
     func bothNilResolvesToNil() {
         #expect(GameRowView.resolvedScore(scheduleScore: nil, finishedRecordScore: nil) == nil)
+    }
+}
+
+// MARK: - BuildEnvironment
+
+// The TestFlight/App-Store split has no Apple-documented API — it's inferred
+// from the app-store receipt's filename. Resolution must fail CLOSED toward
+// .appStore: a wrong guess should only ever hide the offseason replay data
+// from a real user, never expose it. These tests pin that fail-closed
+// behavior for every receiptName value other than the one known TestFlight
+// signal ("sandboxReceipt").
+@Suite("BuildEnvironment.resolve")
+struct BuildEnvironmentResolveTests {
+
+    @Test("sandboxReceipt resolves to testFlight")
+    func sandboxReceiptIsTestFlight() {
+        #expect(BuildEnvironment.resolve(receiptName: "sandboxReceipt") == .testFlight)
+    }
+
+    @Test("receipt (App Store's real filename) resolves to appStore")
+    func receiptIsAppStore() {
+        #expect(BuildEnvironment.resolve(receiptName: "receipt") == .appStore)
+    }
+
+    @Test("nil receipt (no receipt at all) fails closed to appStore")
+    func nilReceiptFailsClosedToAppStore() {
+        #expect(BuildEnvironment.resolve(receiptName: nil) == .appStore)
+    }
+
+    @Test("unrecognized receipt name fails closed to appStore")
+    func unrecognizedReceiptFailsClosedToAppStore() {
+        #expect(BuildEnvironment.resolve(receiptName: "somethingUnexpected") == .appStore)
+    }
+
+    @Test("only .dev and .testFlight show replayed games; .appStore never does")
+    func showsReplayedGamesGating() {
+        #expect(BuildEnvironment.dev.showsReplayedGames)
+        #expect(BuildEnvironment.testFlight.showsReplayedGames)
+        #expect(!BuildEnvironment.appStore.showsReplayedGames)
     }
 }
 
