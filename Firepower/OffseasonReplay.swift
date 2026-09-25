@@ -123,8 +123,21 @@ struct OffseasonReplay {
         return (OffseasonReplay(queryDate: days[index].date, dayShift: shift), days[index].games)
     }
 
-    /// "yyyy-MM-dd" for `now` in ET.
-    static func todayString(_ now: Date = Date()) -> String { string(from: now) }
+    /// "yyyy-MM-dd" for `now` in UTC — deliberately NOT ET. The backend asks the
+    /// emulator for the schedule with `time.Now().UTC()` and the emulator's
+    /// `dayIndex` counts from that date, so the app must use the same date or,
+    /// from ~8 PM ET to midnight, it would list yesterday's slate while the
+    /// backend pushes tomorrow's.
+    static func todayString(_ now: Date = Date()) -> String { utcFormatter.string(from: now) }
+
+    private static let utcFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.dateFormat = "yyyy-MM-dd"
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
 
     // MARK: - Reshape
 

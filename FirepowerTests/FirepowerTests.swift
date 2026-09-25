@@ -156,6 +156,15 @@ struct OffseasonReplayDenseIndexTests {
         #expect(OffseasonReplay.replay(anchor: "2026-06-15", today: "2026-06-18", days: days) == nil)
     }
 
+    // The backend queries the emulator with the UTC date, so 8 PM ET onward is
+    // already "tomorrow" for the emulator's dense index.
+    @Test("today is the UTC date, matching the backend's schedule query")
+    func todayIsUTCDate() {
+        #expect(OffseasonReplay.todayString(et(2026, 9, 25, 12)) == "2026-09-25")
+        #expect(OffseasonReplay.todayString(et(2026, 9, 25, 19, 59)) == "2026-09-25") // 23:59Z
+        #expect(OffseasonReplay.todayString(et(2026, 9, 25, 20, 0)) == "2026-09-26")  // 00:00Z
+    }
+
     @Test("the bundled season file is the emulator's: 211 game-days from 2025-10-07 to 2026-06-14")
     func embeddedSeasonFile() {
         let d = OffseasonReplay.embeddedDays
