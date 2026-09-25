@@ -12,8 +12,7 @@ import FirepowerShared
 
 // MARK: - Helpers
 
-/// Builds an absolute Date from an America/New_York wall-clock time. ET, not
-/// device-local, is what OffseasonReplay buckets by.
+/// Builds an absolute Date from an America/New_York wall-clock time.
 private func et(_ y: Int, _ mo: Int, _ d: Int, _ h: Int = 12, _ mi: Int = 0) -> Date {
     var cal = Calendar(identifier: .gregorian)
     cal.timeZone = TimeZone(identifier: "America/New_York")!
@@ -40,127 +39,138 @@ private func game(_ id: Int, start: String, home: String = "BOS", away: String =
     )
 }
 
-// MARK: - OffseasonReplay.plan
+// MARK: - OffseasonReplay.resolveAnchor
 
-struct OffseasonReplayPlanTests {
+// Mirrors the emulator's resolveState: in the summer gap today's response
+// describes NEXT season, so the anchor (day after the previous season's
+// playoffs) is only reachable by walking previousStartDate back.
+@Suite("OffseasonReplay.resolveAnchor")
+struct OffseasonReplayResolveAnchorTests {
 
-    // CRITICAL: anchor pin. Day-1 of the replay maps to real opening night with
-    // the full season offset. Fails loudly if the emulator anchor drifts.
-    @Test func anchorDayMapsToRealDay1() {
-        let plan = OffseasonReplay.plan(for: et(2026, 6, 29))
-        #expect(plan?.queryDate == "2025-10-07")
-        #expect(plan?.dayShift == 265)
+    typealias B = OffseasonReplay.Boundaries
+
+    // Summer 2026 as the API reports it: today's response rolled forward to
+    // the 2026-27 season; one hop back is still that gap's pre-season block,
+    // two hops back is the 2025-26 season that actually started and ended.
+    private let today = B(regularSeasonStartDate: "2026-10-07", playoffEndDate: "2027-06-20",
+                          previousStartDate: "2026-09-01")
+    private func fetch(_ date: String) -> B {
+        switch date {
+        case "2026-09-01": return B(regularSeasonStartDate: "2026-10-07", playoffEndDate: "2027-06-20",
+                                    previousStartDate: "2026-06-01")
+        case "2026-06-01": return B(regularSeasonStartDate: "2025-10-07", playoffEndDate: "2026-06-14",
+                                    previousStartDate: "2026-05-01")
+        default: return B()
+        }
     }
 
-    // CRITICAL: pre-roll days (June 25-28) replay real Day-1, shifted onto today.
-    @Test func preRollDaysMapToRealDay1OntoToday() {
-        // June 27 → fetch Oct 7, slide onto June 27 (265 - 2 days).
-        let jun27 = OffseasonReplay.plan(for: et(2026, 6, 27))
-        #expect(jun27?.queryDate == "2025-10-07")
-        #expect(jun27?.dayShift == 263)
-
-        // Boundaries of the pre-roll window.
-        #expect(OffseasonReplay.plan(for: et(2026, 6, 25))?.queryDate == "2025-10-07")
-        #expect(OffseasonReplay.plan(for: et(2026, 6, 25))?.dayShift == 261)
-        #expect(OffseasonReplay.plan(for: et(2026, 6, 28))?.queryDate == "2025-10-07")
-        #expect(OffseasonReplay.plan(for: et(2026, 6, 28))?.dayShift == 264)
+    @Test("regular season under way: nil, and no walk-back fetches")
+    func inSeasonIsNil() async throws {
+        var fetches = 0
+        let anchor = try await OffseasonReplay.resolveAnchor(
+            today: "2026-10-07", current: today) { _ in fetches += 1; return B() }
+        #expect(anchor == nil)
+        #expect(fetches == 0)
     }
 
-    // In-window but before pre-roll: normal offset (real date has no games, which
-    // is fine — empty list, not a special case).
-    @Test func earlyWindowUsesNormalOffset() {
-        let jun24 = OffseasonReplay.plan(for: et(2026, 6, 24))
-        #expect(jun24?.queryDate == "2025-10-02") // Oct 7 - 5
-        #expect(jun24?.dayShift == 265)
+    @Test("offseason: walks back to the season that started; anchor = its playoffEndDate + 1")
+    func offseasonAnchorFromPreviousSeason() async throws {
+        let anchor = try await OffseasonReplay.resolveAnchor(today: "2026-09-23", current: today) { fetch($0) }
+        #expect(anchor == "2026-06-15")
     }
 
-    // A mid-season replay date maps back the full offset.
-    @Test func midSeasonDateMapsByOffset() {
-        // July 13 2026 is 14 days after replayDay1 → real Oct 21 2025.
-        let jul13 = OffseasonReplay.plan(for: et(2026, 7, 13))
-        #expect(jul13?.queryDate == "2025-10-21")
-        #expect(jul13?.dayShift == 265)
+    @Test("API failure propagates so the caller can fall back to regular-season behavior")
+    func fetchFailureThrows() async {
+        struct Boom: Error {}
+        await #expect(throws: Boom.self) {
+            try await OffseasonReplay.resolveAnchor(today: "2026-09-23", current: today) { _ in throw Boom() }
+        }
     }
 
-    @Test func windowEdgesAreInclusive() {
-        #expect(OffseasonReplay.plan(for: et(2026, 6, 22)) != nil)
-        #expect(OffseasonReplay.plan(for: et(2026, 9, 30)) != nil)
+    @Test("missing regularSeasonStartDate throws (never guesses)")
+    func missingSeasonStartThrows() async {
+        await #expect(throws: OffseasonReplay.AnchorError.self) {
+            try await OffseasonReplay.resolveAnchor(today: "2026-09-23", current: B()) { _ in B() }
+        }
     }
 
-    // Out of window → nil → caller uses the normal in-season path unchanged.
-    @Test func outOfWindowReturnsNil() {
-        #expect(OffseasonReplay.plan(for: et(2026, 6, 21)) == nil) // day before window
-        #expect(OffseasonReplay.plan(for: et(2026, 10, 1)) == nil) // day after cutoff
-        #expect(OffseasonReplay.plan(for: et(2026, 1, 15)) == nil) // deep winter
-        #expect(OffseasonReplay.plan(for: et(2026, 12, 25)) == nil)
+    @Test("no previousStartDate to walk to throws")
+    func noPreviousThrows() async {
+        let cur = B(regularSeasonStartDate: "2026-10-07", playoffEndDate: nil, previousStartDate: nil)
+        await #expect(throws: OffseasonReplay.AnchorError.self) {
+            try await OffseasonReplay.resolveAnchor(today: "2026-09-23", current: cur) { _ in B() }
+        }
     }
 
-    // Anchors pin to 2026; a future summer must not silently replay the wrong
-    // season against the real NHL API.
-    @Test func futureYearReturnsNil() {
-        #expect(OffseasonReplay.plan(for: et(2027, 7, 15)) == nil)
+    @Test("walk-back is bounded")
+    func walkBackIsBounded() async {
+        var fetches = 0
+        await #expect(throws: OffseasonReplay.AnchorError.self) {
+            try await OffseasonReplay.resolveAnchor(today: "2026-09-23", current: today) { _ in
+                fetches += 1
+                return B(regularSeasonStartDate: "2999-01-01", playoffEndDate: nil, previousStartDate: "2026-01-01")
+            }
+        }
+        #expect(fetches == OffseasonReplay.maxWalkBack)
     }
 
-    // ET, not device-local: an instant just past ET midnight is "today" in ET.
-    @Test func bucketingUsesEasternTime() {
-        // 2026-06-29 00:30 ET is still June 29 in ET → anchor day.
-        #expect(OffseasonReplay.plan(for: et(2026, 6, 29, 0, 30))?.queryDate == "2025-10-07")
-        // 2026-06-28 23:30 ET is June 28 in ET → pre-roll, not June 29.
-        #expect(OffseasonReplay.plan(for: et(2026, 6, 28, 23, 30))?.dayShift == 264)
+    @Test("a previous playoff end that is not before today throws")
+    func anchorAfterTodayThrows() async {
+        await #expect(throws: OffseasonReplay.AnchorError.self) {
+            try await OffseasonReplay.resolveAnchor(today: "2026-06-10", current: today) { fetch($0) }
+        }
     }
 }
 
-// MARK: - OffseasonReplay.isOffseason
+// MARK: - OffseasonReplay.replay (dense index)
 
-// Signal choice pinned against the live API (2026-08-24): mid-season and
-// playoff dates return a `preSeasonStartDate` in the past (it describes THIS
-// season); the offseason gap returns one in the future (the API has rolled
-// forward to describe NEXT season). `playoffEndDate` was tried first and
-// rejected — it rolls forward the same way, so `today > playoffEndDate` never
-// fires once deep in the summer gap (it becomes next June, not this June).
-@Suite("OffseasonReplay.isOffseason")
-struct OffseasonReplayIsOffseasonTests {
+@Suite("OffseasonReplay.replay")
+struct OffseasonReplayDenseIndexTests {
 
-    @Test("no games today and next preseason hasn't started: offseason")
-    func noGamesBeforeNextPreseasonIsOffseason() {
-        #expect(OffseasonReplay.isOffseason(
-            numberOfGamesToday: 0, preSeasonStartDate: "2026-09-19", now: et(2026, 8, 15)))
+    // 2025-10-08 has no games: the saved days are dense, the calendar isn't.
+    private let days: [OffseasonReplay.SeasonDay] = [
+        .init(date: "2025-10-07", games: [game(1, start: "2025-10-07T23:00:00Z")]),
+        .init(date: "2025-10-09", games: [game(2, start: "2025-10-09T23:00:00Z")]),
+        .init(date: "2025-10-10", games: [game(3, start: "2025-10-10T23:00:00Z")]),
+    ]
+
+    @Test("anchor day serves the first saved day")
+    func anchorDayIsIndexZero() {
+        let r = OffseasonReplay.replay(anchor: "2026-06-15", today: "2026-06-15", days: days)
+        #expect(r?.replay.queryDate == "2025-10-07")
+        #expect(r?.replay.dayShift == 251)
+        #expect(r?.games.map(\.id) == [1])
     }
 
-    @Test("no games today but next preseason already started (mid-playoff off day): not offseason")
-    func noGamesAfterPreseasonStartIsNotOffseason() {
-        #expect(!OffseasonReplay.isOffseason(
-            numberOfGamesToday: 0, preSeasonStartDate: "2025-09-20", now: et(2026, 5, 1)))
+    @Test("index counts served days, skipping the season's off-days")
+    func skipsSeasonOffDays() {
+        let r = OffseasonReplay.replay(anchor: "2026-06-15", today: "2026-06-16", days: days)
+        #expect(r?.replay.queryDate == "2025-10-09")   // not 2025-10-08
+        #expect(r?.replay.dayShift == 250)
+        #expect(r?.games.map(\.id) == [2])
     }
 
-    @Test("games scheduled today: not offseason regardless of date")
-    func gamesTodayIsNotOffseason() {
-        #expect(!OffseasonReplay.isOffseason(
-            numberOfGamesToday: 5, preSeasonStartDate: "2026-09-19", now: et(2026, 8, 15)))
+    @Test("before the anchor or past the saved season: nil (no games)")
+    func outOfRangeIsNil() {
+        #expect(OffseasonReplay.replay(anchor: "2026-06-15", today: "2026-06-14", days: days) == nil)
+        #expect(OffseasonReplay.replay(anchor: "2026-06-15", today: "2026-06-18", days: days) == nil)
     }
 
-    @Test("missing preSeasonStartDate: not offseason (fails closed on unparseable response)")
-    func missingPreSeasonStartDateIsNotOffseason() {
-        #expect(!OffseasonReplay.isOffseason(
-            numberOfGamesToday: 0, preSeasonStartDate: nil, now: et(2026, 8, 15)))
+    // The backend queries the emulator with the UTC date, so 8 PM ET onward is
+    // already "tomorrow" for the emulator's dense index.
+    @Test("today is the UTC date, matching the backend's schedule query")
+    func todayIsUTCDate() {
+        #expect(OffseasonReplay.todayString(et(2026, 9, 25, 12)) == "2026-09-25")
+        #expect(OffseasonReplay.todayString(et(2026, 9, 25, 19, 59)) == "2026-09-25") // 23:59Z
+        #expect(OffseasonReplay.todayString(et(2026, 9, 25, 20, 0)) == "2026-09-26")  // 00:00Z
     }
 
-    @Test("unparseable preSeasonStartDate: not offseason (fails closed)")
-    func unparseablePreSeasonStartDateIsNotOffseason() {
-        #expect(!OffseasonReplay.isOffseason(
-            numberOfGamesToday: 0, preSeasonStartDate: "not-a-date", now: et(2026, 8, 15)))
-    }
-
-    @Test("exactly on next preseason's start date: not offseason (boundary exclusive)")
-    func exactlyOnPreSeasonStartDateIsNotOffseason() {
-        #expect(!OffseasonReplay.isOffseason(
-            numberOfGamesToday: 0, preSeasonStartDate: "2026-09-19", now: et(2026, 9, 19)))
-    }
-
-    @Test("day before next preseason's start date: offseason")
-    func dayBeforePreSeasonStartDateIsOffseason() {
-        #expect(OffseasonReplay.isOffseason(
-            numberOfGamesToday: 0, preSeasonStartDate: "2026-09-19", now: et(2026, 9, 18)))
+    @Test("the bundled season file is the emulator's: 211 game-days from 2025-10-07 to 2026-06-14")
+    func embeddedSeasonFile() {
+        let d = OffseasonReplay.embeddedDays
+        #expect(d.count == 211)
+        #expect(d.first?.date == "2025-10-07")
+        #expect(d.last?.date == "2026-06-14")
     }
 }
 

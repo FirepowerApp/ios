@@ -20,36 +20,78 @@ struct NHLScheduleClient {
     ///     The direct fetch's state there describes the real, long-finished
     ///     historical game, which is irrelevant to the replayed timeline.
     ///
+    /// Offseason means the NHL API says the regular season hasn't started yet
+    /// (see `OffseasonReplay.resolveAnchor`); games then come from the bundled
+    /// season file, exactly as the emulator selects them. If that can't be
+    /// determined (API failure) we fall back to the normal path so a transient
+    /// error never shows the wrong games.
+    ///
     /// `env` only gates whether offseason replay happens at all
     /// (`showsReplayedGames`) — real App Store users never see fake games,
-    /// regardless of date.
+    /// regardless of date, and never pay for the anchor lookup.
     static func fetchTodayGames(env: BuildEnvironment = .current) async throws -> [NHLGame] {
         let todayStr = todayString()
         let response = try await fetchSchedule(dateString: todayStr)
-        let todayEntry = response.gameWeek.first(where: { $0.date == todayStr }) ?? response.gameWeek.first
-        let numberOfGamesToday = todayEntry?.numberOfGames ?? todayEntry?.games.count ?? 0
 
-        let isOffseason = OffseasonReplay.isOffseason(
-            numberOfGamesToday: numberOfGamesToday,
-            preSeasonStartDate: response.preSeasonStartDate)
+        if env.showsReplayedGames, let anchor = await offseasonAnchor(response) {
+            print("NHLScheduleClient: offseason replay active, anchor \(anchor)")
+            guard let selection = OffseasonReplay.replay(anchor: anchor, today: OffseasonReplay.todayString()) else {
+                return []  // before the anchor or past the saved season: no games today
+            }
+            let reshaped = selection.replay.reshape(filterGameTypes(selection.games))
 
-        guard isOffseason, env.showsReplayedGames, let replay = OffseasonReplay.plan() else {
-            // Normal in-season path — or offseason on a build that must never
-            // show replayed games (App Store production). In-season: state
-            // does come from the direct fetch.
-            let filtered = filterGameTypes(todayEntry?.games ?? [])
-            return await mergeDirectScores(into: filtered, dateString: todayStr, applyState: true)
+            // Offseason: score always overlaid; state never is — reshape()'s "FUT"
+            // plus the existing trackability/push logic stays fully in control.
+            return await mergeDirectScores(into: reshaped, dateString: selection.replay.queryDate, applyState: false)
         }
 
-        print("NHLScheduleClient: offseason replay active, querying \(replay.queryDate)")
-        let replayResponse = try await fetchSchedule(dateString: replay.queryDate)
-        let replayEntry = replayResponse.gameWeek.first(where: { $0.date == replay.queryDate }) ?? replayResponse.gameWeek.first
-        let filtered = filterGameTypes(replayEntry?.games ?? [])
-        let reshaped = replay.reshape(filtered)
+        // Normal in-season path — or offseason on a build that must never show
+        // replayed games (App Store production), or an undeterminable season
+        // state. In-season: state does come from the direct fetch.
+        let todayEntry = response.gameWeek.first(where: { $0.date == todayStr }) ?? response.gameWeek.first
+        let filtered = filterGameTypes(todayEntry?.games ?? [])
+        return await mergeDirectScores(into: filtered, dateString: todayStr, applyState: true)
+    }
 
-        // Offseason: score always overlaid; state never is — reshape()'s "FUT"
-        // plus the existing trackability/push logic stays fully in control.
-        return await mergeDirectScores(into: reshaped, dateString: replay.queryDate, applyState: false)
+    // MARK: - Offseason anchor
+
+    /// Anchor date if the API says the regular season hasn't started, nil if it
+    /// has — or if the API can't answer (fail toward regular-season behavior).
+    /// The anchor only depends on the season that just ended, so it's reused
+    /// while the upcoming regularSeasonStartDate is unchanged, skipping the
+    /// previousStartDate walk on every refresh.
+    private static func offseasonAnchor(_ response: ScheduleResponse) async -> String? {
+        let today = OffseasonReplay.todayString()
+        let current = response.boundaries
+        if let start = current.regularSeasonStartDate, today < start,
+           let cached = await anchorCache.anchor(forSeasonStart: start) {
+            return cached
+        }
+        do {
+            let anchor = try await OffseasonReplay.resolveAnchor(today: today, current: current) { date in
+                try await fetchSchedule(dateString: date).boundaries
+            }
+            if let anchor, let start = current.regularSeasonStartDate {
+                await anchorCache.store(anchor, forSeasonStart: start)
+            }
+            return anchor
+        } catch {
+            print("NHLScheduleClient: could not resolve season state, using regular-season behavior: \(error)")
+            return nil
+        }
+    }
+
+    // ponytail: in-memory only, so a cold launch re-walks once; persist to UserDefaults if that matters.
+    private static let anchorCache = AnchorCache()
+
+    private actor AnchorCache {
+        private var entry: (seasonStart: String, anchor: String)?
+        func anchor(forSeasonStart start: String) -> String? {
+            entry?.seasonStart == start ? entry?.anchor : nil
+        }
+        func store(_ anchor: String, forSeasonStart start: String) {
+            entry = (start, anchor)
+        }
     }
 
     static func todayString() -> String {
@@ -132,15 +174,18 @@ struct NHLScheduleClient {
 
 private struct ScheduleResponse: Decodable {
     let gameWeek: [GameWeekEntry]
-    let preSeasonStartDate: String?
+    let regularSeasonStartDate: String?
+    let playoffEndDate: String?
+    let previousStartDate: String?
+
+    var boundaries: OffseasonReplay.Boundaries {
+        .init(regularSeasonStartDate: regularSeasonStartDate,
+              playoffEndDate: playoffEndDate,
+              previousStartDate: previousStartDate)
+    }
 }
 
 private struct GameWeekEntry: Decodable {
     let date: String
-    // Optional so a single missing field doesn't throw the whole schedule
-    // decode; the call site falls back to `games.count`. Kept as a distinct
-    // field because the offseason summer schedule reports numberOfGames == 0
-    // with an empty games array, and that count is the offseason signal.
-    let numberOfGames: Int?
     let games: [NHLGame]
 }
