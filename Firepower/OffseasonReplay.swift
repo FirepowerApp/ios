@@ -1,121 +1,130 @@
 import Foundation
 
-// OffseasonReplay maps the current offseason date onto the corresponding real
-// 2025-26 NHL date so the app can show "today's" replayed games.
+// OffseasonReplay mirrors FirepowerApp/gameDataEmulator's game selection so the
+// app lists the same games the backend is pushing during the offseason.
 //
-// During the offseason the real NHL schedule (api-web.nhle.com) is empty, so
-// there is nothing to start a Live Activity for. FirepowerApp/gameDataEmulator
-// replays the completed 2025-26 season shifted forward in the calendar, and the
-// backend pushes those updates to the team channels. The app can't reach the
-// emulator, but it CAN reach the real NHL API — so it fetches the corresponding
-// real 2025-26 date and slides those games onto today.
+// From the first day of the offseason until the regular season starts
+// (offseason + preseason), the emulator serves a dense stack of the saved
+// 2025-26 game-days (season_2025-26.json, identical to the emulator's copy):
 //
-//   real 2025-26 season            shifted "replay" calendar (summer 2026)
-//   ───────────────────            ───────────────────────────────────────
-//   2025-10-07 (Day 1)   ──+265──► 2026-06-29   (replayDay1)
-//                                  2026-06-25..28  pre-roll duplicates of Day 1
+//   anchor ─ +1d ─ +2d ─ ... ─ regular season starts (stop)
+//   gameDays[0]  [1]   [2]
 //
-// Anchors mirror the emulator's cmd/buildschedule flags
-// (-day1 2025-10-07 -target-day1 2026-06-29). If the emulator is rebuilt with a
-// different anchor, update seasonDay1/replayDay1 here; the pinned test in
-// FirepowerTests will flag the drift.
+// where `anchor` = the day after the PREVIOUS season's playoffs ended, and
+// today maps to gameDays[days(anchor → today)] rebased onto today. Dense, so
+// the season's off-days never show up as empty replay days.
 //
-// Whether replay is attempted at all is decided in two places by design:
-//   1. isOffseason(_:) below — detected from the live schedule response
-//      (no games today + before next season's preSeasonStartDate), not a
-//      hardcoded calendar guess.
-//   2. NHLScheduleClient, which additionally gates on BuildEnvironment —
-//      real App Store users never see replayed games regardless of date.
+// Nothing here is hardcoded per season: whether we're in the stack and where
+// day 0 is both come from the live NHL API (`resolveAnchor`), so the app flips
+// to offseason behavior on its own with no new build. If the API can't answer,
+// callers fall back to normal regular-season behavior rather than guess.
+//
+// Callers additionally gate on BuildEnvironment.showsReplayedGames — real App
+// Store users never see replayed games regardless of date.
 struct OffseasonReplay {
 
-    /// Real NHL date to fetch from api-web.nhle.com ("yyyy-MM-dd").
+    /// Real date of the saved game-day being replayed ("yyyy-MM-dd"); also the
+    /// date to ask `/v1/score` about.
     let queryDate: String
-    /// ET calendar days to slide fetched games forward onto "today".
+    /// ET calendar days to slide that day's games forward onto "today".
     let dayShift: Int
-
-    // MARK: - Anchors (2025-26 season → summer-2026 replay)
-
-    static let seasonDay1  = "2025-10-07"  // real 2025-26 opening night
-    static let replayDay1  = "2026-06-29"  // shifted Day-1 in the emulator
-    // windowStart/windowEnd are NOT the offseason trigger — `isOffseason(_:)`
-    // above decides that from the live schedule response. They remain a hard
-    // validity bound on the anchor math below: the emulator has no replay data
-    // outside this range, so plan() must not fabricate a mapping past it.
-    static let windowStart = "2026-06-22"  // replay data validity window (inclusive)
-    static let windowEnd   = "2026-09-30"  // hard cutoff (matches emulator)
-
-    /// The emulator carries duplicate Day-1 slates on the 4 days before
-    /// replayDay1 (June 25-28) using synthetic game IDs that don't exist
-    /// upstream. The app maps those days to real Day-1 so they're testable too.
-    static let preRollDays = 4
 
     /// America/New_York — the timezone the NHL (and the emulator) key game dates
     /// in. Using ET, not device-local, keeps the date mapping correct near
     /// midnight and regardless of where the device is.
     static let timeZone = TimeZone(identifier: "America/New_York")!
 
-    // MARK: - Detection
+    // MARK: - Season file
 
-    /// True when a freshly-fetched schedule response says the offseason is
-    /// underway: no games today, and next season's preseason hasn't started
-    /// yet. This — not `windowStart`/`windowEnd` below — is what decides
-    /// *whether* to attempt a replay; `plan(for:)`'s window stays only as an
-    /// internal validity bound on the anchor math (the emulator's replay data
-    /// doesn't exist outside that range).
+    /// One saved game-day of the embedded season file.
+    struct SeasonDay: Decodable {
+        let date: String
+        let games: [NHLGame]
+    }
+
+    private struct SeasonFile: Decodable { let gameWeek: [SeasonDay] }
+
+    /// The bundled `season_2025-26.json`, date-sorted. Empty (and logged) if the
+    /// resource is missing or malformed — callers then show no replayed games.
+    static let embeddedDays: [SeasonDay] = {
+        guard let url = Bundle.main.url(forResource: "season_2025-26", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let file = try? JSONDecoder().decode(SeasonFile.self, from: data)
+        else {
+            print("OffseasonReplay: embedded season file missing or malformed")
+            return []
+        }
+        return file.gameWeek.sorted { $0.date < $1.date }
+    }()
+
+    // MARK: - Anchor
+
+    /// The subset of `/v1/schedule/{date}`'s top-level fields needed to place
+    /// today relative to the season.
+    struct Boundaries {
+        var regularSeasonStartDate: String?
+        var playoffEndDate: String?
+        var previousStartDate: String?
+    }
+
+    enum AnchorError: Error { case missingBoundary, previousSeasonNotFound }
+
+    /// Bounds the previousStartDate walk (the offseason is ~15 weeks).
+    static let maxWalkBack = 30
+
+    /// Ports the emulator's `resolveState`. Returns nil when the regular season
+    /// (or postseason) is under way — serve normal games — else the anchor
+    /// date ("yyyy-MM-dd"): the day after the previous season's playoffs ended.
     ///
-    /// `preSeasonStartDate`, not `playoffEndDate`, is the signal: the NHL API
-    /// describes whichever season block is current-or-next relative to the
-    /// requested date. Deep in the summer gap this rolls forward to describe
-    /// NEXT season, so `playoffEndDate` becomes next June, not this June —
-    /// `today > playoffEndDate` never fires. `preSeasonStartDate` stays in the
-    /// past all season long and only moves into the future once the calendar
-    /// actually enters the gap between this season's playoffs and next
-    /// season's preseason, which is exactly the window this method needs to
-    /// detect. Confirmed against the live API (2026-08-24): mid-season and
-    /// playoff dates return a `preSeasonStartDate` in the past; the offseason
-    /// gap returns one in the future.
-    static func isOffseason(numberOfGamesToday: Int, preSeasonStartDate: String?, now: Date = Date()) -> Bool {
-        guard numberOfGamesToday == 0,
-              let preSeasonStartDate,
-              let start = day(preSeasonStartDate)
-        else { return false }
-        return calendar.startOfDay(for: now) < start
+    /// `current` is today's schedule response. Its `playoffEndDate` is already
+    /// NEXT season's, so the season that just ended is found by walking
+    /// `previousStartDate` back (via `fetch`) to a response whose
+    /// regularSeasonStartDate is on or before the date queried — a season that
+    /// actually started. Throws if the API can't answer; callers fall back to
+    /// regular-season behavior.
+    static func resolveAnchor(
+        today: String,
+        current: Boundaries,
+        fetch: (String) async throws -> Boundaries
+    ) async throws -> String? {
+        guard let regularSeasonStart = current.regularSeasonStartDate, !regularSeasonStart.isEmpty
+        else { throw AnchorError.missingBoundary }
+        if today >= regularSeasonStart { return nil }
+
+        var date = current.previousStartDate
+        for _ in 0..<maxWalkBack {
+            guard let d = date, !d.isEmpty else { throw AnchorError.previousSeasonNotFound }
+            let b = try await fetch(d)
+            if let start = b.regularSeasonStartDate, !start.isEmpty, start <= d {
+                guard let playoffEnd = b.playoffEndDate.flatMap(Self.day),
+                      let anchor = calendar.date(byAdding: .day, value: 1, to: playoffEnd),
+                      string(from: anchor) <= today
+                else { throw AnchorError.missingBoundary }
+                return string(from: anchor)
+            }
+            date = b.previousStartDate
+        }
+        throw AnchorError.previousSeasonNotFound
     }
 
-    // MARK: - Plan
+    // MARK: - Selection
 
-    /// Builds a replay plan for `now`, or nil when `now` is outside the replay
-    /// window — in which case the caller uses the normal in-season path.
-    static func plan(for now: Date = Date()) -> OffseasonReplay? {
-        let cal = calendar
-        let today = cal.startOfDay(for: now)
-
-        guard
-            let windowStartDate = day(windowStart),
-            let windowEndDate   = day(windowEnd),
-            today >= windowStartDate, today <= windowEndDate,
-            let seasonStart = day(seasonDay1),
-            let replayStart = day(replayDay1),
-            let offsetDays  = cal.dateComponents([.day], from: seasonStart, to: replayStart).day,
-            let preRollStart = cal.date(byAdding: .day, value: -preRollDays, to: replayStart)
+    /// Today's replay: the dense game-day at `days(anchor → today)`, plus the
+    /// shift that rebases it onto today. Nil when today is before the anchor or
+    /// past the saved season — "no games today", same as the emulator.
+    static func replay(anchor: String, today: String, days: [SeasonDay] = embeddedDays)
+        -> (replay: OffseasonReplay, games: [NHLGame])? {
+        guard let anchorDay = day(anchor), let todayDay = day(today),
+              let index = calendar.dateComponents([.day], from: anchorDay, to: todayDay).day,
+              days.indices.contains(index),
+              let baseDay = day(days[index].date),
+              let shift = calendar.dateComponents([.day], from: baseDay, to: todayDay).day
         else { return nil }
-
-        // Pre-roll days (June 25-28) replay real Day-1; every other in-window day
-        // shifts back by the fixed season offset.
-        let realDate: Date
-        if today >= preRollStart, today < replayStart {
-            realDate = seasonStart
-        } else if let shifted = cal.date(byAdding: .day, value: -offsetDays, to: today) {
-            realDate = shifted
-        } else {
-            return nil
-        }
-
-        guard let shift = cal.dateComponents([.day], from: realDate, to: today).day else {
-            return nil
-        }
-        return OffseasonReplay(queryDate: string(from: realDate), dayShift: shift)
+        return (OffseasonReplay(queryDate: days[index].date, dayShift: shift), days[index].games)
     }
+
+    /// "yyyy-MM-dd" for `now` in ET.
+    static func todayString(_ now: Date = Date()) -> String { string(from: now) }
 
     // MARK: - Reshape
 
