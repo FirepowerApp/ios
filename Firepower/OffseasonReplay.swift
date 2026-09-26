@@ -123,21 +123,23 @@ struct OffseasonReplay {
         return (OffseasonReplay(queryDate: days[index].date, dayShift: shift), days[index].games)
     }
 
-    /// "yyyy-MM-dd" for `now` in UTC — deliberately NOT ET. The backend asks the
-    /// emulator for the schedule with `time.Now().UTC()` and the emulator's
-    /// `dayIndex` counts from that date, so the app must use the same date or,
-    /// from ~8 PM ET to midnight, it would list yesterday's slate while the
-    /// backend pushes tomorrow's.
-    static func todayString(_ now: Date = Date()) -> String { utcFormatter.string(from: now) }
-
-    private static let utcFormatter: DateFormatter = {
+    /// "yyyy-MM-dd" for `now` in the device's local time zone. Per project
+    /// policy the client always keys "today" off the device's own clock, never
+    /// UTC or any other fixed zone — including here, where the backend's
+    /// emulator counts `dayIndex` from `time.Now().UTC()`. That means a device
+    /// left on ET can, from ~8 PM to midnight ET, show a different offseason
+    /// slate than the one the backend is pushing; that mismatch is accepted
+    /// as the cost of never reasoning about "today" in a zone the user isn't
+    /// actually in. `timeZone` defaults to `.current` and is only a parameter
+    /// so tests can pin it without depending on the machine's local zone.
+    static func todayString(_ now: Date = Date(), timeZone: TimeZone = .current) -> String {
         let f = DateFormatter()
         f.calendar = Calendar(identifier: .gregorian)
         f.dateFormat = "yyyy-MM-dd"
-        f.timeZone = TimeZone(identifier: "UTC")
+        f.timeZone = timeZone
         f.locale = Locale(identifier: "en_US_POSIX")
-        return f
-    }()
+        return f.string(from: now)
+    }
 
     // MARK: - Reshape
 
