@@ -156,13 +156,22 @@ struct OffseasonReplayDenseIndexTests {
         #expect(OffseasonReplay.replay(anchor: "2026-06-15", today: "2026-06-18", days: days) == nil)
     }
 
-    // The backend queries the emulator with the UTC date, so 8 PM ET onward is
-    // already "tomorrow" for the emulator's dense index.
-    @Test("today is the UTC date, matching the backend's schedule query")
-    func todayIsUTCDate() {
-        #expect(OffseasonReplay.todayString(et(2026, 9, 25, 12)) == "2026-09-25")
-        #expect(OffseasonReplay.todayString(et(2026, 9, 25, 19, 59)) == "2026-09-25") // 23:59Z
-        #expect(OffseasonReplay.todayString(et(2026, 9, 25, 20, 0)) == "2026-09-26")  // 00:00Z
+    // "Today" is keyed off whatever time zone is passed in (the device's own
+    // zone in production, via the `.current` default) — never a fixed zone.
+    // The same instant lands on different calendar dates depending on where
+    // the device is, and the UTC/ET columns below must NOT match the local
+    // one, or this test isn't actually proving the zone is respected.
+    @Test("today is the device's local date, not a fixed UTC or ET date")
+    func todayIsLocalDate() {
+        let utc = TimeZone(identifier: "UTC")!
+        let easternTime = TimeZone(identifier: "America/New_York")!
+        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+
+        // 2026-09-25 20:00 ET == 2026-09-26 00:00 UTC == 2026-09-26 09:00 JST
+        let instant = et(2026, 9, 25, 20, 0)
+        #expect(OffseasonReplay.todayString(instant, timeZone: easternTime) == "2026-09-25")
+        #expect(OffseasonReplay.todayString(instant, timeZone: utc) == "2026-09-26")
+        #expect(OffseasonReplay.todayString(instant, timeZone: tokyo) == "2026-09-26")
     }
 
     @Test("the bundled season file is the emulator's: 211 game-days from 2025-10-07 to 2026-06-14")

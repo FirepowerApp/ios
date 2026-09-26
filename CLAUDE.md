@@ -15,6 +15,26 @@ surfaced during review (e.g. `/review`, `/plan-eng-review`) that should travel w
 instead of living only in `$PLANNING`. The two lists are not the same thing: `$PLANNING/todos.md`
 is yours; `TODOS.md` is the project's.
 
+## Time zones: device-local only, never UTC
+
+The client always determines "today" — which games belong on the home game list, cache
+freshness, offseason replay's day index, anything answering "what day is it right now" —
+using the **device's own local time zone** (`TimeZone.current` / `Calendar.current`).
+
+**Never key client-side "today" logic to UTC or any other fixed time zone.** UTC is a
+backend/network-boundary format for exchanging instants (wire timestamps, `startTimeUTC`),
+not a reference frame for deciding what a user sees "today." A client that computes its
+own day boundary in UTC (or ET, or any zone other than the device's) will show the wrong
+day's games to a user in a different time zone, near midnight, or across a DST change —
+that class of bug is explicitly out of bounds here, no matter how it's justified (e.g.
+"matching a backend convention"). If a wire format or backend service is genuinely UTC-
+keyed and something needs to line up with it, resolve the mismatch on the backend side or
+accept the mismatch — don't make the client's own day boundary UTC to compensate.
+
+`OffseasonReplay.todayString()` (dev/TestFlight-only offseason game selection) takes an
+explicit `timeZone` parameter for testability, but defaults to `.current` and must keep
+doing so.
+
 ## Architecture: iOS app is a pure APNs channel subscriber
 
 **The iOS app never makes direct HTTP calls to the Firepower backend.**
@@ -87,7 +107,7 @@ Only the dynamic `ContentState` crosses the wire. The iOS `ContentState` (in `Fi
 
 - `Firepower/` — main app target (TodayView, LiveActivityManager, FirepowerApp, NHLScheduleClient, OffseasonReplay)
 - `Firepower/LiveActivityManager.swift` — Live Activity lifecycle. `rehydrate()`/`rehydratePlan` reconcile tracked state against the OS's running activities on every foreground; `endIfFinal` is the only place in the app that ends a finished game's activity (see the wire-format section above). `TodayView`'s `reconcile()` calls `rehydrate()` on cold launch and every scenePhase transition to `.active`. Also owns `finishedGames`: the moment a tracked game's push reaches Final, its result (score + xG) is captured into a persisted `FinishedGame` record — captured on every path that can retire a game from `tracked` (the live `.ended` observer, `rehydrate()`'s prune path for a game that finished while the app wasn't running, and `stopActivity()`) so `GameRowView` can show the real result and hide the Track button even after the schedule API or the Live Activity itself has gone stale.
-- `Firepower/OffseasonReplay.swift` + `Firepower/season_2025-26.json` — offseason game selection, mirroring the emulator (`FirepowerApp/gameDataEmulator`). The bundled JSON must stay identical to the emulator's `internal/services/data/season_2025-26.json`. When the live NHL API says the regular season hasn't started (`regularSeasonStartDate`), `resolveAnchor` finds day 0 (the day after the previous season's playoffs, via a `previousStartDate` walk-back — nothing hardcoded per season) and today (the UTC date — the backend queries the emulator by UTC date, so the app must too) maps to the dense `gameDays[days(anchor → today)]`, rebased onto today (FUT, scores cleared, DST-aware). API failure → regular-season behavior. Gated by `BuildEnvironment.showsReplayedGames` (Dev/TestFlight only). Pinned tests in `FirepowerTests`.
+- `Firepower/OffseasonReplay.swift` + `Firepower/season_2025-26.json` — offseason game selection, mirroring the emulator (`FirepowerApp/gameDataEmulator`). The bundled JSON must stay identical to the emulator's `internal/services/data/season_2025-26.json`. When the live NHL API says the regular season hasn't started (`regularSeasonStartDate`), `resolveAnchor` finds day 0 (the day after the previous season's playoffs, via a `previousStartDate` walk-back — nothing hardcoded per season) and today (the device's local date — see "Time zones" above) maps to the dense `gameDays[days(anchor → today)]`, rebased onto today (FUT, scores cleared, DST-aware). API failure → regular-season behavior. Gated by `BuildEnvironment.showsReplayedGames` (Dev/TestFlight only). Pinned tests in `FirepowerTests`.
 - `Firepower/NHLTeams.swift` — static config for all 32 teams: `tricode`, `name`, `shortName` (mascot only, e.g. "Penguins" — rendered next to the logo/badge in `GameRowView`, since the tricode already appears inside it), channel IDs. Color lives in `NHLTeamColors` (`FirepowerShared`), not here.
 - `FirepowerShared/` — local Swift package shared by app and widget (FirepowerActivityAttributes, NHLColor, NHLTeamColors, TeamTricodeBadge, DebugFlags)
 - `FirepowerActivityKit/` — widget extension (FirepowerWidget, FirepowerActivityKitBundle)
